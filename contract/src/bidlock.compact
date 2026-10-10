@@ -1,0 +1,238 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Bidlock: sealed-bid public tenders on Midnight.
+//
+//   1. QUALIFY  The buyer enrols pre-qualified suppliers as anonymous
+//               commitments in a Merkle tree.
+//   2. BID      A supplier proves "I am qualified" in zero knowledge and posts
+//               a hash commitment to a price at or below the ceiling. Nobody,
+//               the buyer included, sees a price. One bid per supplier.
+//   3. REVEAL   After the deadline, each bidder sends the buyer their opening,
+//               sealed to the buyer's key.
+//   4. AWARD    The buyer proves in zero knowledge that the winning bid is the
+//               lowest of every bid it included. Only the winning price is
+//               published. Losing prices stay private forever.
+//   5. DISPUTE  An excluded bidder can prove publicly that they bid lower.
+//               The award is then marked contested on-chain.
+
+pragma language_version >= 0.20;
+
+import CompactStandardLibrary;
+
+export struct Opening {
+  amount: Uint<64>;
+  salt: Bytes<32>;
+}
+
+// ── Tender terms, fixed at deployment ───────────────────────────────────────
+export sealed ledger title: Opaque<"string">;
+export sealed ledger tender_id: Bytes<32>;
+// X25519 public key that bid openings are sealed to.
+export sealed ledger buyer_key: Bytes<32>;
+export sealed ledger ceiling: Uint<64>;
+export sealed ledger closes_at: Uint<64>;
+export sealed ledger reveal_until: Uint<64>;
+
+// ── State ───────────────────────────────────────────────────────────────────
+export ledger buyer: Bytes<32>;
+export ledger suppliers: HistoricMerkleTree<10, Bytes<32>>;
+export ledger qualified: Set<Bytes<32>>;
+export ledger supplier_count: Counter;
+export ledger nullifiers: Set<Bytes<32>>;
+export ledger bids: Map<Uint<8>, Bytes<32>>;
+export ledger bid_count: Counter;
+export ledger sealed_openings: Map<Uint<8>, Opaque<"string">>;
+export ledger included: Map<Uint<8>, Boolean>;
+export ledger awarded: Boolean;
+export ledger winner: Uint<8>;
+export ledger winning_amount: Uint<64>;
+export ledger accepted: Boolean;
+export ledger winner_name: Opaque<"string">;
+export ledger contested: Boolean;
+export ledger disputes: Counter;
+export ledger disputed: Map<Uint<8>, Uint<64>>;
+
+// Award proofs cover up to this many bids per tender.
+export pure circuit max_bids(): Uint<8> {
+  return 8;
+}
+
+// ── Witnesses (private state on the user's device) ──────────────────────────
+witness buyer_secret(): Bytes<32>;
+witness supplier_secret(): Bytes<32>;
+witness supplier_path(leaf: Bytes<32>): MerkleTreePath<10, Bytes<32>>;
+witness new_bid(): Opening;
+witness remember_bid(index: Uint<8>, bid: Opening): [];
+witness my_bid(index: Uint<8>): Opening;
+// Buyer only: openings decrypted off-chain, and which bids to count.
+witness award_openings(): Vector<8, Opening>;
+witness award_included(): Vector<8, Boolean>;
+witness award_winner(): Opening;
+
+// ── Hashes (domain-separated) ───────────────────────────────────────────────
+export pure circuit buyer_commitment(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "bidlock:buyer:v1"), sk]);
+}
+
+export pure circuit supplier_commitment(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "bidlock:supplier:v1"), sk]);
+}
+
+// Bound to the tender, so a commitment can't be replayed in another one.
+export pure circuit bid_commitment(o: Opening, tender: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<4, Bytes<32>>>([
+    pad(32, "bidlock:bid:v1"),
+    (o.amount as Field) as Bytes<32>,
+    o.salt,
+    tender
+  ]);
+}
+
+// One bid per supplier per tender, without revealing which supplier.
+export pure circuit bid_nullifier(sk: Bytes<32>, tender: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([pad(32, "bidlock:nullifier:v1"), sk, tender]);
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+circuit assert_buyer(): [] {
+  assert(buyer == buyer_commitment(buyer_secret()), "Only the buyer can do this");
+}
+
+circuit assert_owns(index: Uint<8>): Opening {
+  assert(bids.member(index), "Unknown bid");
+  const o = my_bid(index);
+  assert(bids.lookup(index) == bid_commitment(o, tender_id), "You did not place this bid");
+  return o;
+}
+
+// ── Constructor ─────────────────────────────────────────────────────────────
+constructor(
+  name: Opaque<"string">,
+  id: Bytes<32>,
+  key: Bytes<32>,
+  max_price: Uint<64>,
+  close: Uint<64>,
+  reveal: Uint<64>
+) {
+  assert(max_price > 0, "Ceiling must be positive");
+  assert(close < reveal, "Reveal window must end after bidding closes");
+  title = disclose(name);
+  tender_id = disclose(id);
+  buyer_key = disclose(key);
+  ceiling = disclose(max_price);
+  closes_at = disclose(close);
+  reveal_until = disclose(reveal);
+  buyer = disclose(buyer_commitment(buyer_secret()));
+}
+
+// ── 1. Qualify ──────────────────────────────────────────────────────────────
+export circuit qualify(commitment: Bytes<32>): [] {
+  assert_buyer();
+  assert(blockTimeLt(closes_at), "Bidding has closed");
+  const c = disclose(commitment);
+  assert(!qualified.member(c), "Supplier already qualified");
+  qualified.insert(c);
+  suppliers.insert(c);
+  supplier_count.increment(1);
+}
+
+// ── 2. Bid ──────────────────────────────────────────────────────────────────
+export circuit submit_bid(): Uint<8> {
+  assert(blockTimeLt(closes_at), "Bidding has closed");
+  assert(bid_count < max_bids(), "Tender is full");
+
+  // Qualified, anonymously.
+  const sk = supplier_secret();
+  const leaf = supplier_commitment(sk);
+  const path = supplier_path(leaf);
+  assert(path.leaf == leaf, "Merkle path does not match supplier secret");
+  assert(suppliers.checkRoot(disclose(merkleTreePathRoot<10, Bytes<32>>(path))), "Not a qualified supplier");
+
+  // One bid each.
+  const nul = disclose(bid_nullifier(sk, tender_id));
+  assert(!nullifiers.member(nul), "You already bid on this tender");
+  nullifiers.insert(nul);
+
+  // Price stays private. Only "it's within the ceiling" is proven.
+  const bid = new_bid();
+  assert(bid.amount > 0, "Bid must be positive");
+  assert(bid.amount <= ceiling, "Bid exceeds the ceiling");
+
+  const index = bid_count.read() as Uint<8>;
+  bids.insert(index, disclose(bid_commitment(bid, tender_id)));
+  bid_count.increment(1);
+  remember_bid(index, bid);
+  return index;
+}
+
+// ── 3. Reveal (to the buyer only) ───────────────────────────────────────────
+export circuit reveal_bid(index: Uint<8>, sealed_opening: Opaque<"string">): [] {
+  assert(blockTimeGte(closes_at), "Bidding is still open");
+  assert(blockTimeLt(reveal_until), "Reveal window is over");
+  const i = disclose(index);
+  assert_owns(i);
+  assert(!sealed_openings.member(i), "Already revealed");
+  sealed_openings.insert(i, disclose(sealed_opening));
+}
+
+// ── 4. Award ────────────────────────────────────────────────────────────────
+// The buyer passes every opening it decrypted. The circuit checks each one
+// against its on-chain commitment and that the winner's price is the lowest
+// among the included bids. Only the winner's price is disclosed.
+export circuit award(winner_index: Uint<8>): [] {
+  assert_buyer();
+  assert(blockTimeGte(reveal_until), "Reveal window is still open");
+  assert(!awarded, "Already awarded");
+  const w = disclose(winner_index);
+  const n = bid_count.read();
+  assert(w < n, "Unknown bid");
+
+  const ops = award_openings();
+  const inc = award_included();
+  const win = award_winner();
+  assert(bids.lookup(w) == bid_commitment(win, tender_id), "Winning opening does not match its bid");
+
+  for (const i of 0..8) {
+    if (i < n) {
+      const counted = disclose(inc[i]);
+      if (counted) {
+        assert(bids.lookup(i) == bid_commitment(ops[i], tender_id), "An opening does not match its bid");
+        assert(win.amount <= ops[i].amount, "Winner is not the lowest included bid");
+      }
+      if (i == w) {
+        assert(counted, "Winner must be an included bid");
+      }
+      included.insert(i, counted);
+    }
+  }
+
+  winner = w;
+  winning_amount = disclose(win.amount);
+  awarded = true;
+}
+
+// ── 5a. Winner steps forward ────────────────────────────────────────────────
+export circuit accept_award(name: Opaque<"string">): [] {
+  assert(awarded, "Not awarded yet");
+  assert(!accepted, "Already accepted");
+  assert_owns(winner);
+  winner_name = disclose(name);
+  accepted = true;
+}
+
+// ── 5b. Dispute an unfair exclusion ─────────────────────────────────────────
+// The disputer chooses to make their own price public, to prove it beat the winner.
+export circuit dispute(index: Uint<8>): [] {
+  assert(awarded, "Not awarded yet");
+  const i = disclose(index);
+  const o = assert_owns(i);
+  // Bids never revealed were excluded by the bidder's own choice.
+  assert(sealed_openings.member(i), "This bid was never revealed");
+  assert(!included.lookup(i), "This bid was counted in the award");
+  assert(!disputed.member(i), "Already disputed");
+  const amount = disclose(o.amount);
+  assert(amount < winning_amount, "Your bid was not lower than the winner");
+  disputed.insert(i, amount);
+  disputes.increment(1);
+  contested = true;
+}

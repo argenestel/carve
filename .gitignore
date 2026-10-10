@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.bidlock/
+reports/
+*.log
+.env
+app/public/managed/
+*.tsbuildinfo

@@ -1,0 +1,25 @@
+{
+  "name": "bidlock",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "workspaces": [
+    "contract",
+    "app",
+    "cli"
+  ],
+  "scripts": {
+    "compile": "npm run compact --workspace contract",
+    "test": "npm test --workspace contract",
+    "dev": "npm run dev --workspace app",
+    "build": "npm run build --workspace contract && npm run build --workspace app",
+    "bidlock": "npm run bidlock --workspace cli --",
+    "typecheck": "npm run typecheck --workspace contract && npm run typecheck --workspace cli && tsc -p app --noEmit"
+  },
+  "overrides": {
+    "@midnight-ntwrk/onchain-runtime-v3": "3.0.0",
+    "@midnight-ntwrk/ledger-v8": "8.1.0",
+    "@midnight-ntwrk/compact-runtime": "0.16.0"
+  }
+}
