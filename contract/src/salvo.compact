@@ -1,0 +1,277 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Salvo: Battleship on Midnight, with no one to trust.
+//
+// Each player commits to a hidden fleet. The commitment circuit proves the
+// fleet is legal (in bounds, no overlaps) without revealing it. Every turn the
+// mover answers the salvo fired at them, proving each hit or miss against
+// their committed fleet, and fires a new salvo of up to three shots. Ship
+// positions never touch the ledger, so nobody can see a fleet and nobody can
+// lie about a hit.
+//
+// A player who stops moving loses on time: after the deadline the opponent
+// claims the win.
+
+pragma language_version >= 0.20;
+
+import CompactStandardLibrary;
+
+export enum Phase { empty, open, playing, over }
+
+export struct Ship {
+  x: Uint<8>;
+  y: Uint<8>;
+  vertical: Boolean;
+}
+
+export struct Fleet {
+  ships: Vector<4, Ship>;
+  salt: Bytes<32>;
+}
+
+export struct Shot {
+  x: Uint<8>;
+  y: Uint<8>;
+}
+
+// ── Rules ───────────────────────────────────────────────────────────────────
+// 8×8 sea. Ships of length 4, 3, 3 and 2: 12 cells to sink.
+export pure circuit board_size(): Uint<8> {
+  return 8;
+}
+
+export pure circuit fleet_cells(): Uint<8> {
+  return 12;
+}
+
+export pure circuit ship_length(i: Uint<8>): Uint<8> {
+  return i == 0 ? 4 as Uint<8> : i == 3 ? 2 as Uint<8> : 3 as Uint<8>;
+}
+
+// ── Game terms, fixed at creation ───────────────────────────────────────────
+// Seconds each player has to move before the opponent may claim the win.
+export sealed ledger move_time: Uint<64>;
+
+// ── State ───────────────────────────────────────────────────────────────────
+export ledger phase: Phase;
+export ledger player1: Bytes<32>;
+export ledger player2: Bytes<32>;
+export ledger fleet1: Bytes<32>;
+export ledger fleet2: Bytes<32>;
+// 1 or 2: who moves next.
+export ledger turn: Uint<8>;
+// The salvo fired at the player whose turn it is, waiting for their answer.
+export ledger incoming: Vector<3, Shot>;
+export ledger incoming_count: Uint<8>;
+// Answered shots, cell (y * 8 + x) → hit, at each player's fleet.
+export ledger shots_at1: Map<Uint<8>, Boolean>;
+export ledger shots_at2: Map<Uint<8>, Boolean>;
+export ledger hits_on1: Counter;
+export ledger hits_on2: Counter;
+export ledger moves: Counter;
+export ledger deadline: Uint<64>;
+// 0 while playing, then 1 or 2.
+export ledger winner: Uint<8>;
+export ledger by_timeout: Boolean;
+// Fleets the players chose to show after the game.
+export ledger shown1: Vector<4, Ship>;
+export ledger shown2: Vector<4, Ship>;
+export ledger is_shown1: Boolean;
+export ledger is_shown2: Boolean;
+
+// ── Witnesses (private state on the player's device) ────────────────────────
+witness player_secret(): Bytes<32>;
+witness my_fleet(): Fleet;
+witness current_time(): Uint<64>;
+
+// ── Hashes (domain-separated) ───────────────────────────────────────────────
+export pure circuit player_key(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "salvo:player:v1"), sk]);
+}
+
+export pure circuit fleet_commitment(f: Fleet): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "salvo:fleet:v1"), persistentHash<Fleet>(f)]);
+}
+
+export pure circuit cell(x: Uint<8>, y: Uint<8>): Uint<8> {
+  return (y * board_size() + x) as Uint<8>;
+}
+
+// ── Geometry ────────────────────────────────────────────────────────────────
+pure circuit width(s: Ship, len: Uint<8>): Uint<8> {
+  return s.vertical ? 1 as Uint<8> : len;
+}
+
+pure circuit height(s: Ship, len: Uint<8>): Uint<8> {
+  return s.vertical ? len : 1 as Uint<8>;
+}
+
+pure circuit covers(s: Ship, len: Uint<8>, x: Uint<8>, y: Uint<8>): Boolean {
+  return s.x <= x && x < s.x + width(s, len) && s.y <= y && y < s.y + height(s, len);
+}
+
+pure circuit overlap(a: Ship, la: Uint<8>, b: Ship, lb: Uint<8>): Boolean {
+  return a.x < b.x + width(b, lb) && b.x < a.x + width(a, la) &&
+         a.y < b.y + height(b, lb) && b.y < a.y + height(a, la);
+}
+
+export pure circuit is_hit(f: Fleet, x: Uint<8>, y: Uint<8>): Boolean {
+  return covers(f.ships[0], 4, x, y) || covers(f.ships[1], 3, x, y) ||
+         covers(f.ships[2], 3, x, y) || covers(f.ships[3], 2, x, y);
+}
+
+export pure circuit is_legal(f: Fleet): Boolean {
+  const n = board_size();
+  const s = f.ships;
+  const inside =
+    s[0].x + width(s[0], 4) <= n && s[0].y + height(s[0], 4) <= n &&
+    s[1].x + width(s[1], 3) <= n && s[1].y + height(s[1], 3) <= n &&
+    s[2].x + width(s[2], 3) <= n && s[2].y + height(s[2], 3) <= n &&
+    s[3].x + width(s[3], 2) <= n && s[3].y + height(s[3], 2) <= n;
+  const apart =
+    !overlap(s[0], 4, s[1], 3) && !overlap(s[0], 4, s[2], 3) && !overlap(s[0], 4, s[3], 2) &&
+    !overlap(s[1], 3, s[2], 3) && !overlap(s[1], 3, s[3], 2) && !overlap(s[2], 3, s[3], 2);
+  return inside && apart;
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+// Commit to a legal fleet without revealing it.
+circuit commit_fleet(): Bytes<32> {
+  const f = my_fleet();
+  assert(is_legal(f), "Ships must be inside the sea and must not overlap");
+  return disclose(fleet_commitment(f));
+}
+
+// The current time, within a few minutes of the block's.
+circuit now(): Uint<64> {
+  const t = disclose(current_time());
+  assert(blockTimeGte(t), "Clock is ahead of the chain");
+  assert(blockTimeLt((t + 1800) as Uint<64>), "Clock is behind the chain");
+  return t;
+}
+
+circuit me(): Bytes<32> {
+  return disclose(player_key(player_secret()));
+}
+
+circuit start_clock(): [] {
+  deadline = (now() + move_time) as Uint<64>;
+}
+
+// ── Create and join ─────────────────────────────────────────────────────────
+// The constructor is not proven, so it commits to nothing secret. Both players
+// commit their fleets through `join`, whose proof checks the fleet is legal.
+constructor(seconds_per_move: Uint<64>) {
+  assert(seconds_per_move >= 60, "Allow at least a minute per move");
+  move_time = disclose(seconds_per_move);
+}
+
+export circuit join(): [] {
+  if (phase == Phase.empty) {
+    player1 = me();
+    fleet1 = commit_fleet();
+    phase = Phase.open;
+  } else {
+    assert(phase == Phase.open, "This game already has two players");
+    player2 = me();
+    fleet2 = commit_fleet();
+    phase = Phase.playing;
+    turn = 1;
+    start_clock();
+  }
+}
+
+// ── Play ────────────────────────────────────────────────────────────────────
+// Answer the salvo fired at you, then fire `count` shots back.
+export circuit play(salvo: Vector<3, Shot>, count: Uint<8>): [] {
+  assert(phase == Phase.playing, "The game is not in progress");
+  const first = turn == 1;
+  assert(me() == (first ? player1 : player2), "It is not your turn");
+
+  // 1. Answer, proving every hit and miss against the committed fleet.
+  const n = incoming_count;
+  if (n > 0) {
+    const f = my_fleet();
+    assert(fleet_commitment(f) == (first ? fleet1 : fleet2), "That is not the fleet you committed to");
+    for (const i of 0..3) {
+      if (i < n) {
+        const s = incoming[i];
+        const hit = disclose(is_hit(f, s.x, s.y));
+        const c = cell(s.x, s.y);
+        if (first) {
+          shots_at1.insert(c, hit);
+          if (hit) { hits_on1.increment(1); }
+        } else {
+          shots_at2.insert(c, hit);
+          if (hit) { hits_on2.increment(1); }
+        }
+      }
+    }
+  }
+
+  // 2. Sunk: the shooter wins. Otherwise fire back.
+  const sunk = first ? hits_on1.read() >= fleet_cells() : hits_on2.read() >= fleet_cells();
+  if (sunk) {
+    winner = first ? 2 as Uint<8> : 1 as Uint<8>;
+    phase = Phase.over;
+    incoming_count = 0;
+  } else {
+    const k = disclose(count);
+    const v = disclose(salvo);
+    assert(k > 0 && k <= 3, "Fire one to three shots");
+    for (const i of 0..3) {
+      if (i < k) {
+        assert(v[i].x < board_size() && v[i].y < board_size(), "Shot is outside the sea");
+        const c = cell(v[i].x, v[i].y);
+        assert(!(first ? shots_at2.member(c) : shots_at1.member(c)), "You already fired at that cell");
+        for (const j of 0..3) {
+          if (j < i) {
+            assert(!(v[j].x == v[i].x && v[j].y == v[i].y), "A salvo cannot hit the same cell twice");
+          }
+        }
+      }
+    }
+    incoming = v;
+    incoming_count = k;
+    turn = first ? 2 as Uint<8> : 1 as Uint<8>;
+    moves.increment(1);
+    start_clock();
+  }
+}
+
+// ── Ending ──────────────────────────────────────────────────────────────────
+// The player waiting on a move that is overdue wins.
+export circuit claim_timeout(): [] {
+  assert(phase == Phase.playing, "The game is not in progress");
+  assert(blockTimeGte(deadline), "Your opponent still has time to move");
+  const first = turn == 1;
+  assert(me() == (first ? player2 : player1), "Only the waiting player can claim");
+  winner = first ? 2 as Uint<8> : 1 as Uint<8>;
+  by_timeout = true;
+  phase = Phase.over;
+}
+
+export circuit resign(): [] {
+  assert(phase == Phase.playing, "The game is not in progress");
+  const k = me();
+  assert(k == player1 || k == player2, "You are not playing this game");
+  winner = k == player1 ? 2 as Uint<8> : 1 as Uint<8>;
+  phase = Phase.over;
+}
+
+// After the game, show your fleet. It is checked against your commitment.
+export circuit show_fleet(): [] {
+  assert(phase == Phase.over, "Fleets stay hidden until the game is over");
+  const k = me();
+  const f = my_fleet();
+  if (k == player1) {
+    assert(fleet_commitment(f) == fleet1, "That is not the fleet you committed to");
+    shown1 = disclose(f.ships);
+    is_shown1 = true;
+  } else {
+    assert(k == player2, "You are not playing this game");
+    assert(fleet_commitment(f) == fleet2, "That is not the fleet you committed to");
+    shown2 = disclose(f.ships);
+    is_shown2 = true;
+  }
+}

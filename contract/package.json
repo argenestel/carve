@@ -1,5 +1,5 @@
 {
-  "name": "@bidlock/contract",
+  "name": "@salvo/contract",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "private": true,
@@ -14,15 +14,14 @@
     }
   },
   "scripts": {
-    "compact": "compact compile +0.31.1 src/bidlock.compact src/managed/bidlock",
-    "compact:fast": "compact compile +0.31.1 --skip-zk src/bidlock.compact src/managed/bidlock",
+    "compact": "compact compile +0.31.1 src/salvo.compact src/managed/salvo",
+    "compact:fast": "compact compile +0.31.1 --skip-zk src/salvo.compact src/managed/salvo",
     "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/managed dist/managed",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@midnight-ntwrk/compact-runtime": "0.16.0",
-    "tweetnacl": "^1.0.3"
+    "@midnight-ntwrk/compact-runtime": "0.16.0"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

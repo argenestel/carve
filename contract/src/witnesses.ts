@@ -1,85 +1,92 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Private state for Bidlock. Everything here stays on the user's device; the
-// circuits receive it as private ZK inputs and disclose only hashes, plus the
-// winning price at award time.
+// Private state for Salvo. The player's secret and fleet stay on their
+// device; circuits receive them as private ZK inputs and disclose only hashes
+// and hit/miss answers.
 
 import type { WitnessContext } from "@midnight-ntwrk/compact-runtime";
-import type { Ledger, Opening } from "./managed/bidlock/contract/index.js";
+import type { Fleet, Ledger, Ship } from "./managed/salvo/contract/index.js";
 
-export const BidlockPrivateStateId = "bidlockPrivateState" as const;
-export const MAX_BIDS = 8;
+export const SalvoPrivateStateId = "salvoPrivateState" as const;
 
-export type AwardInput = {
-  /** Openings by bid index (length MAX_BIDS; unused slots are ignored). */
-  openings: Opening[];
-  /** Which bids the buyer counts. A revealed bid left out can be disputed. */
-  included: boolean[];
-  winner: Opening;
-};
+export const BOARD = 8;
+export const SHIP_LENGTHS = [4, 3, 3, 2] as const;
+export const FLEET_CELLS = 12;
+export const SALVO = 3;
 
-export type BidlockPrivateState = {
-  readonly buyerSecret: Uint8Array | null;
-  readonly supplierSecret: Uint8Array | null;
-  /** The bid about to be placed (amount + salt). */
-  readonly pendingBid: Opening | null;
-  /** Bid index (decimal string) → opening, for bids this device placed. */
-  readonly bids: Readonly<Record<string, Opening>>;
-  /** Set by the buyer right before calling `award`. */
-  readonly award: AwardInput | null;
+export type SalvoPrivateState = {
+  readonly secret: Uint8Array;
+  readonly fleet: Fleet | null;
 };
 
 export const randomBytes = (n = 32): Uint8Array => globalThis.crypto.getRandomValues(new Uint8Array(n));
 
-export const emptyPrivateState = (): BidlockPrivateState => ({
-  buyerSecret: null,
-  supplierSecret: null,
-  pendingBid: null,
-  bids: {},
-  award: null,
-});
+export const newPlayer = (fleet: Fleet | null = null, secret: Uint8Array = randomBytes()): SalvoPrivateState => ({ secret, fleet });
 
-export const buyerPrivateState = (secret: Uint8Array = randomBytes()): BidlockPrivateState => ({
-  ...emptyPrivateState(),
-  buyerSecret: secret,
-});
+/** The time a move claims. A little behind the wall clock, as block times lag. */
+export const realClock = (): bigint => BigInt(Math.floor(Date.now() / 1000) - 120);
 
-export const supplierPrivateState = (secret: Uint8Array = randomBytes()): BidlockPrivateState => ({
-  ...emptyPrivateState(),
-  supplierSecret: secret,
-});
+type Ctx = WitnessContext<Ledger, SalvoPrivateState>;
+type R<T> = [SalvoPrivateState, T];
 
-export const emptyOpening = (): Opening => ({ amount: 0n, salt: new Uint8Array(32) });
-
-type Ctx = WitnessContext<Ledger, BidlockPrivateState>;
-type R<T> = [BidlockPrivateState, T];
-
-const need = <T>(v: T | null | undefined, what: string): T => {
-  if (v === null || v === undefined) throw new Error(`${what} is not available on this device`);
-  return v;
-};
-
-export const witnesses = {
-  buyer_secret: ({ privateState: ps }: Ctx): R<Uint8Array> => [ps, need(ps.buyerSecret, "Buyer key")],
-
-  supplier_secret: ({ privateState: ps }: Ctx): R<Uint8Array> => [ps, need(ps.supplierSecret, "Supplier credential")],
-
-  supplier_path: ({ privateState: ps, ledger }: Ctx, leaf: Uint8Array) => {
-    const path = ledger.suppliers.findPathForLeaf(leaf);
-    if (!path) throw new Error("This supplier is not qualified for the tender");
-    return [ps, path] as R<typeof path>;
+export const makeWitnesses = (clock: () => bigint = realClock) => ({
+  player_secret: ({ privateState: ps }: Ctx): R<Uint8Array> => [ps, ps.secret],
+  my_fleet: ({ privateState: ps }: Ctx): R<Fleet> => {
+    if (!ps.fleet) throw new Error("Your fleet is not on this device");
+    return [ps, ps.fleet];
   },
+  current_time: ({ privateState: ps }: Ctx): R<bigint> => [ps, clock()],
+});
 
-  new_bid: ({ privateState: ps }: Ctx): R<Opening> => [ps, need(ps.pendingBid, "Bid amount")],
+export const witnesses = makeWitnesses();
 
-  remember_bid: ({ privateState: ps }: Ctx, index: bigint, bid: Opening): R<[]> => [
-    { ...ps, pendingBid: null, bids: { ...ps.bids, [index.toString()]: bid } },
-    [],
-  ],
+// ── Fleet helpers (mirror the circuit's geometry) ───────────────────────────
+export type Placement = { x: number; y: number; vertical: boolean };
 
-  my_bid: ({ privateState: ps }: Ctx, index: bigint): R<Opening> => [ps, need(ps.bids[index.toString()], `Bid #${index}`)],
+export const shipCells = (p: Placement, len: number): [number, number][] =>
+  Array.from({ length: len }, (_, k) => (p.vertical ? [p.x, p.y + k] : [p.x + k, p.y]));
 
-  award_openings: ({ privateState: ps }: Ctx): R<Opening[]> => [ps, need(ps.award, "Award input").openings],
-  award_included: ({ privateState: ps }: Ctx): R<boolean[]> => [ps, need(ps.award, "Award input").included],
-  award_winner: ({ privateState: ps }: Ctx): R<Opening> => [ps, need(ps.award, "Award input").winner],
+/** Why a fleet is illegal, or null if it is legal. */
+export const fleetProblem = (ships: Placement[]): string | null => {
+  const taken = new Set<number>();
+  for (const [i, p] of ships.entries()) {
+    for (const [x, y] of shipCells(p, SHIP_LENGTHS[i])) {
+      if (x < 0 || y < 0 || x >= BOARD || y >= BOARD) return "A ship is outside the sea";
+      if (taken.has(y * BOARD + x)) return "Ships overlap";
+      taken.add(y * BOARD + x);
+    }
+  }
+  return null;
 };
+
+export const toFleet = (ships: Placement[], salt: Uint8Array = randomBytes()): Fleet => ({
+  ships: ships.map((p): Ship => ({ x: BigInt(p.x), y: BigInt(p.y), vertical: p.vertical })),
+  salt,
+});
+
+export const fromShips = (ships: Ship[]): Placement[] => ships.map((s) => ({ x: Number(s.x), y: Number(s.y), vertical: s.vertical }));
+
+export const randomPlacement = (): Placement[] => {
+  const rnd = (n: number) => globalThis.crypto.getRandomValues(new Uint32Array(1))[0] % n;
+  for (;;) {
+    const ships: Placement[] = [];
+    for (const len of SHIP_LENGTHS) {
+      for (let tries = 0; tries < 50; tries++) {
+        const vertical = rnd(2) === 1;
+        const p = { x: rnd(vertical ? BOARD : BOARD - len + 1), y: rnd(vertical ? BOARD - len + 1 : BOARD), vertical };
+        if (!fleetProblem([...ships, p])) {
+          ships.push(p);
+          break;
+        }
+      }
+    }
+    if (ships.length === SHIP_LENGTHS.length) return ships;
+  }
+};
+
+export const isHitAt = (ships: Placement[], x: number, y: number) =>
+  ships.some((p, i) => shipCells(p, SHIP_LENGTHS[i]).some(([cx, cy]) => cx === x && cy === y));
+
+// ── Hex ─────────────────────────────────────────────────────────────────────
+export const toHex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+export const fromHex = (h: string) => Uint8Array.from(h.match(/../g) ?? [], (x) => Number.parseInt(x, 16));

@@ -1,5 +1,5 @@
 {
-  "name": "@bidlock/app",
+  "name": "@salvo/app",
   "private": true,
   "version": "0.1.0",
   "license": "Apache-2.0",
@@ -8,10 +8,10 @@
     "dev": "npm run sync-keys && vite",
     "build": "npm run sync-keys && tsc -b && vite build",
     "preview": "vite preview",
-    "sync-keys": "rm -rf public/managed && mkdir -p public/managed/bidlock && cp -R ../contract/src/managed/bidlock/keys ../contract/src/managed/bidlock/zkir public/managed/bidlock/"
+    "sync-keys": "rm -rf public/managed && mkdir -p public/managed/salvo && cp -R ../contract/src/managed/salvo/keys ../contract/src/managed/salvo/zkir public/managed/salvo/"
   },
   "dependencies": {
-    "@bidlock/contract": "*",
+    "@salvo/contract": "*",
     "@midnight-ntwrk/compact-js": "^2.5.1",
     "@midnight-ntwrk/compact-runtime": "^0.16.0",
     "@midnight-ntwrk/dapp-connector-api": "^4.0.1",

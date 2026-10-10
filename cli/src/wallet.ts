@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Headless wallet for the Bidlock CLI. Adapted from midnightntwrk/example-counter
+// Headless wallet for the Salvo CLI. Adapted from midnightntwrk/example-counter
 // (Copyright (C) 2025 Midnight Foundation, Apache-2.0) via
 // mashharuki/midnight-rps-sample-app, including its wallet-state cache and
 // intent-signing workaround.
@@ -133,9 +133,9 @@ export const persistWallet = async (net: Network, seed: string, wallet: WalletFa
   fs.writeFileSync(path.join(dir, "dust.json"), d);
 };
 
-/** Load the seed from BIDLOCK_WALLET_SEED or .bidlock/<net>/seed, creating one if needed. */
+/** Load the seed from SALVO_WALLET_SEED or .salvo/<net>/seed, creating one if needed. */
 export const loadOrCreateSeed = (net: Network): string => {
-  if (process.env.BIDLOCK_WALLET_SEED) return process.env.BIDLOCK_WALLET_SEED;
+  if (process.env.SALVO_WALLET_SEED) return process.env.SALVO_WALLET_SEED;
   const p = path.join(stateDir(net), "seed");
   if (fs.existsSync(p)) return fs.readFileSync(p, "utf8").trim();
   const seed = Buffer.from(generateRandomSeed()).toString("hex");

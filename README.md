@@ -1,123 +1,131 @@
-# Bidlock
+# Salvo
 
-**Sealed-bid public tenders on Midnight. The buyer proves the award was fair, and losing prices are never revealed.**
+**Battleship on Midnight, with no one to trust.** Your fleet never leaves your device, and every hit or miss your opponent reports is checked by a zero-knowledge proof.
 
 ## The problem
 
-Public procurement accounts for a large share of government spending, and sealed-bid tenders are where it goes wrong:
+Hidden-information games are what online play does worst. Battleship, poker, fog-of-war strategy and card drafting all need someone to hold the secrets:
 
-- **Leaked bids.** Whoever can see the bids before the deadline can tip off a favoured supplier.
-- **Rigged awards.** "The lowest bid wins" is something the buyer asserts, not something anyone can check without seeing every bid.
-- **Exposed prices.** Publishing every bid to make the award checkable hands each supplier's cost structure to its competitors, which helps cartels coordinate.
+- **A game server** sees both fleets. It can leak them, be hacked, or be bribed, and you have to take its word for every result.
+- **Fully on-chain** games can't hide anything: everything on a public chain is public.
+- **Commit-reveal** schemes only catch a cheater at the end, after the game is lost, and a losing player can simply walk away instead of revealing.
 
-The usual fixes trade transparency against confidentiality. Midnight lets a tender have both.
+Midnight lets each player keep their own secret and *prove* every answer about it as the game goes on.
 
-## How Bidlock works
+## How Salvo works
 
-| Phase | What happens | What's proven in ZK | What stays private |
+| Step | What happens | Proven in zero knowledge | What stays private |
 |---|---|---|---|
-| **Qualify** | The buyer enrols pre-qualified suppliers as hash commitments in a Merkle tree | the buyer holds the buyer key | which commitment belongs to whom (only the buyer knows) |
-| **Bid** | The supplier posts a commitment to its price | it is a qualified supplier, this is its first bid, and the price is > 0 and ≤ the ceiling | **who** bid, and the **price**, from everyone, buyer included |
-| **Reveal** | After the deadline, the supplier sends its opening sealed to the buyer's key (X25519) | it owns that bid | the price, from everyone but the buyer |
-| **Award** | The buyer publishes the winner | **every counted opening matches its on-chain commitment, and the winner is the lowest of them** | **every losing price** |
-| **Dispute** | A revealed bidder the buyer left out can contest | its sealed bid was lower than the winner's | the disputer chooses to make its own price public |
+| **Hide** | Each player commits to their fleet: a hash goes on-chain | the fleet is legal: 4 ships (4, 3, 3, 2) inside the 8×8 sea, no overlaps | where every ship is |
+| **Fire** | The player to move fires a salvo of up to 3 shots | it's their turn, the shots are on the board, no repeats | nothing; shots are public |
+| **Answer** | On their next move, the defender answers each incoming shot | each hit or miss is true for the committed fleet | the fleet; only "hit" or "miss" is published |
+| **Sink** | First to hit all 12 cells wins | the shooter's hits really total 12 | the loser's remaining ships |
+| **Clock** | Every move restarts the opponent's clock (10 min, 1 hour or 1 day) | the move's timestamp is within 30 min of the block's | — |
 
-After the award, the public sees the winner, the winning price, which bids were counted, and whether the award is contested. Losing bidders stay anonymous and their prices stay sealed.
+Answering and firing happen in **one transaction**: your move proves your answers to their last salvo and fires yours. A whole game is about 10 to 15 moves each.
 
-The buyer can't fake the result. Lying about any opening, picking a bid that isn't the lowest, or forging the winning price all fail the proof. The only way to cheat is to leave a bid out, and that's public: the excluded bidder can prove it was cheaper, and the tender is marked **contested** on-chain for good.
+**Nobody can cheat:**
+- *Lying about a hit:* the answer proof fails.
+- *Moving a ship mid-game:* every answer is checked against the original commitment.
+- *An illegal fleet* (overlapping, off the board, or missing ships): the commitment proof fails.
+- *Refusing to answer when losing:* the clock runs out and the opponent claims the win on-chain.
+
+Ship positions never touch the ledger, not even as arguments to ledger operations, so nothing on-chain reveals them. After the game, either player can **show their fleet**. It is checked against their commitment and drawn on the opponent's board.
 
 ## Run it
 
-Bidlock is a real dApp on **Midnight Preprod**. Every action is a transaction you prove and sign in Lace.
+Salvo is a real dApp on **Midnight Preprod**. Every move is a transaction you prove and sign in Lace.
 
 ### Requirements
 
 - [Lace](https://www.lace.io/) with Midnight enabled and set to **Preprod**, funded with tNIGHT from the [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/). Fees are paid in tDUST, generated from tNIGHT.
 - Node 22+, Compact toolchain `0.31.1`.
 
-> Since 2026-10-09 the Preprod indexer and RPC are run by [Blockfrost](https://blockfrost.io) (see the [Midnight docs](https://docs.midnight.network/guides/networks-and-environments)). The web app reads through the indexer configured in Lace. To let people view tenders *without* a wallet, set `VITE_BLOCKFROST_PROJECT_ID` (see `app/.env.example`). The CLI needs `BLOCKFROST_PROJECT_ID`.
+> Since 2026-10-09 the Preprod indexer and RPC are run by [Blockfrost](https://blockfrost.io) (see the [Midnight docs](https://docs.midnight.network/guides/networks-and-environments)). The web app reads through the indexer configured in Lace. To let people watch games *without* a wallet, set `VITE_BLOCKFROST_PROJECT_ID` (see `app/.env.example`). The CLI needs `BLOCKFROST_PROJECT_ID`.
 
 ### Web app
 
 ```bash
 npm install
-npm run compile        # compact compile +0.31.1 → contract/src/managed/bidlock (keys + zkir)
+npm run compile        # compact compile +0.31.1 → contract/src/managed/salvo (keys + zkir)
 npm run build --workspace contract
 npm run dev            # → http://localhost:5173
 ```
 
-**Buyer:** *New tender*: set the title, ceiling, bid deadline and reveal deadline, then **Deploy** (proved and signed in Lace). Share the tender link.
+1. **New game:** place your fleet (tap a ship to move it, tap it again to turn it, or Shuffle) and pick the time per move. **Create game** asks Lace twice: once to deploy, once to prove and commit your fleet.
+2. **Send the link.** Your opponent opens it, places their fleet and clicks **Join game**.
+3. **Play.** On your move, tap up to three cells in *Enemy waters* and click **Fire**. Incoming shots pulse on your own board, and your Fire transaction proves your answers to them.
+4. If your opponent's clock runs out, click **Claim the win**. After the game, **Show my fleet to them**.
 
-**Supplier:** open the link, click **Request to bid**, and send the request link back to the buyer. A per-tender supplier secret is created in your browser; only its hash leaves it. Once qualified, enter your price and **Seal bid**. After the deadline, **Reveal to buyer**. After the award, claim it if you won, or dispute if you were cut.
+Anyone with the link who isn't playing sees both boards with every proven hit and miss, and no ships.
 
-**Buyer again:** open each request link and **Qualify**. After the reveal window, the buyer's browser decrypts the openings and **Award** proves that the lowest counted bid wins.
-
-**Anyone** with the link can watch the tender. The **Your view / Public view** switch shows what's on-chain: hash commitments only.
-
-Private state (secrets, your bid's amount and salt, the buyer's decryption key) is kept in this browser's localStorage, scoped per tender. Use the same browser for the whole tender.
+Your secret and fleet are kept in this browser's localStorage, scoped to the game. Use the same browser for the whole game.
 
 ### CLI
+
+A headless player for scripted games, or to play a friend in the browser from your terminal.
 
 ```bash
 export BLOCKFROST_PROJECT_ID=nightpreprod...
 npm run proof-server --workspace cli    # midnightntwrk/proof-server:8.0.3 on :6300 (needs Docker)
 
-npm run bidlock -- deploy "Ring Road 3 resurfacing" 1200000 1 1     # 1h bidding, 1h reveal
-npm run bidlock -- credential --as atlas          # supplier → commitment
-npm run bidlock -- qualify <commitment>            # buyer
-npm run bidlock -- bid 820000 --as atlas
-npm run bidlock -- reveal "Atlas Paving" --as atlas    # after the deadline
-npm run bidlock -- openings                         # buyer, after the reveal window
-npm run bidlock -- award
-npm run bidlock -- accept "Atlas Paving" --as atlas
-npm run bidlock -- status
+npm run salvo -- new 60                          # 60 minutes per move, random fleet
+npm run salvo -- join <address> --fleet "A1h B3h C5v F2v"
+npm run salvo -- fire A1 B2 C3
+npm run salvo -- board
+npm run salvo -- claim | resign | show
 ```
 
-The first run prints a wallet address; fund it from the faucet. Local secrets live in `cli/.bidlock/<network>/` (git-ignored).
+The first run prints a wallet address; fund it from the faucet. Local secrets live in `cli/.salvo/<network>/` (git-ignored). `--as <name>` keeps separate players' private state apart.
 
 ### Tests
 
 ```bash
-npm test     # 27 contract tests
+npm test     # 19 contract tests
 ```
 
-The contract suite runs the compiled circuits against a controllable block clock. It covers qualification (duplicates, impostor buyer, late qualification), bidding (unqualified supplier, borrowed Merkle path, second bid, ceiling and zero price, deadline, 8-bid cap, tender-bound commitments), reveal (window, wrong owner, forged opening), award (lowest wins; a lying buyer, a non-lowest winner, a forged winning price, an excluded winner, early, double, or non-buyer awards all rejected; winner acceptance), and disputes (an unfair exclusion is contested; disputes from included, higher, never-revealed, or pre-award bids are rejected).
+The suite runs the compiled circuits against a controllable block clock. It covers:
+- **fleet legality:** the circuit agrees with the TypeScript rules on random fleets, and out-of-bounds, overlapping and illegal joins are rejected;
+- **joining:** start, waiting, a third player, the minimum move time;
+- **proven answers:** hits, misses and counts;
+- **rejected moves:** playing out of turn or as an outsider, answering with a swapped fleet, empty, off-board, duplicate and repeated shots;
+- **sinking** a fleet to win;
+- **the clock:** claiming too early or by the wrong player, a backdated or future-dated move;
+- **after the game:** resigning, and showing a fleet that is checked against its commitment.
 
 ## Architecture
 
 ```
-contract/  bidlock.compact · witnesses · simulator · sealing (X25519) · tests     @bidlock/contract
-app/       React + Vite dApp: Lace connector v4, wallet-side proving, Preprod      @bidlock/app
-cli/       midnight-js 4.1.1 + wallet-sdk; preprod / preview / local               @bidlock/cli
+contract/  salvo.compact · witnesses · simulator · tests                @salvo/contract
+app/       React + Vite dApp: Lace connector v4, wallet-side proving   @salvo/app
+cli/       midnight-js 4.1.1 + wallet-sdk; preprod / preview / local   @salvo/cli
 ```
 
-**Public ledger:** sealed terms (title, tender id, buyer X25519 key, ceiling, deadlines), the supplier Merkle tree, nullifiers, bid commitments, sealed openings, inclusion flags, the winner and winning price, and the dispute record.
+**Public ledger:** player keys (hashes of per-game secrets), fleet commitments, whose turn it is, the incoming salvo, every answered shot (cell → hit), hit counters, the move deadline, the winner, and any fleets shown after the game.
 
-**Private state:** the buyer secret and the buyer's X25519 secret key (buyer); the supplier secret and its bids' amounts and salts (each supplier).
+**Private state** (each player's device): the player secret and the fleet (four ships and a salt).
 
 | Circuit | Caller | Key checks |
 |---|---|---|
-| `constructor` | buyer | ceiling > 0, close < reveal; buyer = H(secret) |
-| `qualify` | buyer | buyer secret, before close, commitment not already qualified |
-| `submit_bid` | supplier | before close, < 8 bids, Merkle membership, unused nullifier H(secret, tender), 0 < price ≤ ceiling |
-| `reveal_bid` | supplier | inside the reveal window, owns the bid, not already revealed |
-| `award` | buyer | after the reveal window; for each of 8 slots: counted ⇒ opening matches its commitment and winner ≤ it; winner counted |
-| `accept_award` | winner | owns the winning bid |
-| `dispute` | supplier | awarded, owns the bid, revealed, excluded, and lower than the winning price |
+| `constructor` | creator | at least 60 s per move (not proven, so it commits nothing secret) |
+| `join` | each player | the fleet is legal; commitment = H(fleet, salt); the second join starts the clock |
+| `play` | player to move | their turn; each incoming shot answered against their committed fleet; 1 to 3 new shots on the board, unrepeated; win at 12 hits |
+| `claim_timeout` | waiting player | the deadline has passed |
+| `resign` | either player | is a player |
+| `show_fleet` | either player | the game is over; the fleet matches its commitment |
 
-Hashes are domain-separated (`bidlock:buyer:v1`, `bidlock:supplier:v1`, `bidlock:bid:v1`, `bidlock:nullifier:v1`), and bid commitments are bound to the tender id.
+Hashes are domain-separated (`salvo:player:v1`, `salvo:fleet:v1`). A move's timestamp comes from a witness and is bounded by `blockTimeGte` and `blockTimeLt`, so a player can't backdate a move to shorten their opponent's clock.
 
 ## Limitations
 
-- **Garbage openings.** A bidder could reveal an envelope that doesn't decrypt, get excluded, and then dispute. A dispute marks the award for review; it doesn't overturn it. **Next:** the buyer publishes that envelope's per-envelope shared key so anyone can check that it really fails to decrypt.
-- **Price only.** Awards go to the lowest price. Weighted price/quality scoring (MEAT, as EU procurement rules call it) is on the roadmap.
-- **8 bids per tender.** That's the size of the award circuit. Larger tenders need a bigger circuit, or a tournament across several proofs.
-- **Fees.** Each transaction pays fees from a wallet. Suppliers should use wallets that aren't linked to their company, and a fee-sponsoring relayer is planned.
-- **Browser storage.** Private state lives in localStorage, unencrypted and tied to one browser. **Next:** an encrypted export/import and a passphrase.
+- **Board size.** 8×8 with four ships keeps proofs small (the `play` prover key is 5 MB). The circuit is parameterised by constants, so a classic 10×10 is a recompile.
+- **No "sunk" call-outs.** Announcing which ship sank would need ledger lookups keyed by ship cells, which would reveal positions. Proving it from the public shot history without leaking anything is on the roadmap.
+- **Browser storage.** Your fleet lives in localStorage, unencrypted and tied to one browser. Lose it mid-game and you can't answer, so you lose on time. **Next:** an encrypted export.
+- **Fees.** Each move is a transaction paid in tDUST.
 
 ## Roadmap
 
-Encrypted private-state backup · price/quality (MEAT) scoring · garbage-envelope rebuttal · fee relayer · multi-lot tenders · signed award reports for audit bodies.
+Encrypted fleet backup · private "sunk" proofs · open-games lobby · wagers held in escrow by the contract · the same commit-and-prove pattern for other hidden-information games (Stratego-style, fog-of-war).
 
 ## License
 

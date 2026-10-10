@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState } from "react";
+import { WalletError } from "../lib/wallet";
 
 export const Busy = ({ label }: { label: string }) => (
   <>
@@ -7,10 +8,10 @@ export const Busy = ({ label }: { label: string }) => (
   </>
 );
 
-export const eur = (n: bigint) => `€${Number(n).toLocaleString("en-GB")}`;
-
 /** Turn circuit assertion failures and wallet errors into one readable line. */
-export const errorText = (e: unknown): string => {
+export const errorText = (e: unknown): string | null => {
+  // Connection problems already show in the banner.
+  if (e instanceof WalletError) return null;
   const m = String((e as Error)?.message ?? e);
   const assert = m.match(/failed assert: (.*)/);
   if (assert) return assert[1];

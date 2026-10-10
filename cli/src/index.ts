@@ -1,38 +1,31 @@
 #!/usr/bin/env -S node --import tsx
 // SPDX-License-Identifier: Apache-2.0
 //
-// bidlock: run a sealed-bid tender on a Midnight network.
+// salvo: play Battleship on a Midnight network from the terminal.
 //
-//   npm run bidlock -- <command> [args] [--net preprod] [--as <actor>]
+//   npm run salvo -- <command> [args] [--net preprod] [--as <player>]
 //
-// Actors are local private-state namespaces: "buyer" (the default) or any
-// supplier name. One wallet pays fees for all of them in this CLI.
+// Players are local private-state namespaces ("me" by default). One wallet
+// pays fees for all of them in this CLI.
 
-import { toHex } from "@bidlock/contract";
-import * as B from "./bidlock.js";
+import { BOARD, type Ledger, Phase, type Placement, fleetProblem, fromShips, isHitAt, randomPlacement } from "@salvo/contract";
 import { loadNetwork } from "./config.js";
+import * as S from "./salvo.js";
 import { buildWallet, loadOrCreateSeed, persistWallet, step } from "./wallet.js";
 
 const HELP = `
-bidlock: sealed-bid tenders on Midnight
+salvo: Battleship on Midnight
 
-Buyer (--as buyer, the default):
-  deploy "<title>" <ceiling> [bidHours=24] [revealHours=24]
-  qualify <commitment>        Pre-qualify a supplier (anonymous commitment)
-  openings                    Decrypt the openings revealed to you
-  award [--exclude 1,2]       Prove and publish the lowest bid as the winner
+  new [minutesPerMove=60]   Deploy a game and commit your fleet
+  join <address>            Commit your fleet and join a game
+  fire A1 [B2] [C3]         Answer the salvo at you (with proofs) and fire back
+  board                     Both boards and whose turn it is
+  claim                     Win if your opponent ran out of time
+  resign                    Give up
+  show                      After the game, reveal your fleet
 
-Supplier (--as <name>):
-  credential                  Create your supplier secret; prints the commitment for the buyer
-  bid <amount>                Place a sealed bid (proves: qualified, ≤ ceiling, first bid)
-  reveal "<company>"          After the deadline, send your opening sealed to the buyer
-  accept "<company>"          If you won, step forward by name
-  dispute                     If you were excluded but cheaper, contest the award
-
-Anyone:
-  status                      Public state of the tender
-
-Options: --net preprod|preview|undeployed (default preprod)  --as <actor>  --contract <address>
+Options: --net preprod|preview|undeployed (default preprod)  --as <player>  --game <address>
+         --fleet "A1h B3h C5v F2v"   ships of length 4,3,3,2: top-left cell + h|v (random if omitted)
 `;
 
 const parseArgs = (argv: string[]) => {
@@ -45,86 +38,111 @@ const parseArgs = (argv: string[]) => {
   return { cmd: pos[0], args: pos.slice(1), flags };
 };
 
-const when = (t: bigint) => new Date(Number(t) * 1000).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+const COLS = "ABCDEFGH";
+const parseCell = (s: string): [number, number] => {
+  const m = s.toUpperCase().match(/^([A-H])([1-8])$/);
+  if (!m) throw new Error(`"${s}" is not a cell (A1 to H8)`);
+  return [COLS.indexOf(m[1]), Number(m[2]) - 1];
+};
+const parseFleet = (s: string | undefined): Placement[] => {
+  if (!s) return randomPlacement();
+  const ships = s.trim().split(/\s+/).map((t) => {
+    const [x, y] = parseCell(t.slice(0, -1));
+    const o = t.slice(-1).toLowerCase();
+    if (o !== "h" && o !== "v") throw new Error(`"${t}": end each ship with h or v`);
+    return { x, y, vertical: o === "v" };
+  });
+  if (ships.length !== 4) throw new Error("A fleet is 4 ships: lengths 4, 3, 3, 2");
+  const bad = fleetProblem(ships);
+  if (bad) throw new Error(bad);
+  return ships;
+};
+
+const draw = (l: Ledger, me: 1 | 2 | null, mine: Placement[] | null) => {
+  const shotsAt = (n: 1 | 2) => (n === 1 ? l.shots_at1 : l.shots_at2);
+  const grid = (n: 1 | 2, ships: Placement[] | null) => {
+    const s = shotsAt(n);
+    const rows = [`   ${[...COLS].join(" ")}`];
+    for (let y = 0; y < BOARD; y++) {
+      let r = `${y + 1}  `;
+      for (let x = 0; x < BOARD; x++) {
+        const c = BigInt(y * BOARD + x);
+        r += (s.member(c) ? (s.lookup(c) ? "X" : "o") : ships && isHitAt(ships, x, y) ? "■" : "·") + " ";
+      }
+      rows.push(r);
+    }
+    return rows;
+  };
+  const opp = me === 2 ? 1 : 2;
+  const left = grid(me ?? 1, me ? mine : null);
+  const right = grid(opp as 1 | 2, null);
+  console.log(`  ${(me ? "Your fleet" : "Fleet 1").padEnd(22)}${me ? "Enemy waters" : "Fleet 2"}`);
+  for (let i = 0; i < left.length; i++) console.log(`  ${left[i].padEnd(22)}${right[i]}`);
+  console.log("");
+};
 
 const main = async () => {
   const { cmd, args, flags } = parseArgs(process.argv.slice(2));
   if (!cmd || cmd === "help") return console.log(HELP);
 
   const net = loadNetwork(flags.net ?? "preprod");
-  const actor = flags.as ?? "buyer";
-  console.log(`\n  bidlock · ${net.name} · acting as "${actor}"\n`);
+  const player = flags.as ?? "me";
+  console.log(`\n  salvo · ${net.name} · playing as "${player}"\n`);
 
   const seed = loadOrCreateSeed(net);
   const ctx = await buildWallet(net, seed);
-  const p = await B.providersFor(net, ctx, actor);
-  const address = flags.contract ?? B.loadRecord(net).contractAddress;
+  const p = await S.providersFor(net, ctx, player);
+  const address = cmd === "join" ? args[0] : (flags.game ?? S.loadGameAddress(net));
   const need = () => {
-    if (!address) throw new Error("No contract address. Run `deploy` or pass --contract <address>.");
+    if (!address) throw new Error("No game. Run `new`, `join <address>` or pass --game <address>.");
     return address;
   };
-  if (address && cmd !== "deploy") B.scopeToTender(p, address);
-  const contract = () => step("Joining tender", () => B.join(p, need()));
-  const l = () => B.readLedger(p, need());
-  const done = (r: { txId: string; block: number }) => console.log(`  tx ${r.txId} · block ${r.block}\n`);
+  if (address && cmd !== "new") S.scopeToGame(p, address);
+  const game = () => step("Opening the game", () => S.open(p, need()));
+  const l = () => S.readLedger(p, need());
 
   try {
     switch (cmd) {
-      case "deploy": {
-        const [title = "Ring Road 3 resurfacing", ceiling = "1200000", bidH = "24", revH = "24"] = args;
-        const r = await step(`Deploying "${title}"`, () => B.deploy(net, p, title, BigInt(ceiling), Number(bidH), Number(revH)));
-        console.log(`\n  Contract: ${r.address}\n  Tx:       ${r.txId}\n  Bids close ${when(r.closesAt)}\n`);
+      case "new": {
+        const ships = parseFleet(flags.fleet);
+        const a = await step("Deploying the game and committing your fleet", () => S.create(net, p, BigInt(Number(args[0] ?? 60) * 60), ships));
+        console.log(`\n  Game: ${a}\n  Send this address to your opponent. You fire first.\n`);
         break;
       }
-      case "qualify":
-        done(await step("Qualifying supplier", async () => B.qualify(await contract(), args[0])));
+      case "join":
+        await step("Proving your fleet and joining", () => S.join(net, p, need(), parseFleet(flags.fleet)));
+        console.log("  Joined. Your opponent fires first.\n");
         break;
-      case "credential":
-        console.log(`  Supplier commitment (send to the buyer):\n  ${await B.newCredential(p)}\n`);
-        break;
-      case "bid": {
-        const r = await step(`Proving and sealing your bid`, async () => B.bid(p, await contract(), BigInt(args[0])));
-        console.log(`  Bid #${r.index} sealed.`);
-        done(r);
-        break;
-      }
-      case "reveal": {
-        const c = await contract();
-        const r = await step("Sealing your opening to the buyer", async () => B.reveal(p, await l(), c, args[0] ?? actor));
-        done(r);
-        break;
-      }
-      case "openings":
-        for (const [i, o] of B.openings(net, await l())) console.log(`  #${i}  €${o.opening.amount.toLocaleString("en-GB")}  ${o.company}`);
+      case "fire": {
+        const shots = args.map(parseCell);
+        const c = await game();
+        await step(`Answering and firing at ${args.join(" ").toUpperCase()}`, () => S.fire(c, shots));
         console.log("");
         break;
-      case "award": {
-        const c = await contract();
-        const exclude = flags.exclude ? flags.exclude.split(",").map((x) => BigInt(x)) : [];
-        const r = await step("Proving the award", async () => B.award(net, p, await l(), c, { exclude }));
-        console.log(`  Bid #${r.winner} wins at €${r.amount.toLocaleString("en-GB")}.`);
-        done(r);
-        break;
       }
-      case "accept":
-        done(await step("Claiming the award", async () => B.accept(await contract(), args[0] ?? actor)));
+      case "claim":
+        await step("Claiming the win on time", async () => (await game()).callTx.claim_timeout());
         break;
-      case "dispute":
-        done(await step("Proving your bid beat the winner", async () => B.dispute(p, await contract())));
+      case "resign":
+        await step("Resigning", async () => (await game()).callTx.resign());
         break;
-      case "status": {
+      case "show":
+        await step("Revealing your fleet", async () => (await game()).callTx.show_fleet());
+        break;
+      case "board": {
         const s = await l();
-        const now = BigInt(Math.floor(Date.now() / 1000));
-        const phase = s.awarded ? "awarded" : now < s.closes_at ? "bidding" : now < s.reveal_until ? "reveal" : "evaluation";
-        console.log(`  ${s.title} · ${need()}`);
-        console.log(`  phase ${phase} · ceiling €${s.ceiling.toLocaleString("en-GB")} · closes ${when(s.closes_at)} · reveal until ${when(s.reveal_until)}`);
-        console.log(`  qualified ${s.supplier_count} · bids ${s.bid_count} · revealed ${s.sealed_openings.size()}`);
-        for (const [i, c] of s.bids) console.log(`    #${i}  ${toHex(c).slice(0, 24)}…`);
-        if (s.awarded) {
-          console.log(`  winner #${s.winner} at €${s.winning_amount.toLocaleString("en-GB")}${s.accepted ? ` · ${s.winner_name}` : ""}`);
-          console.log(`  contested: ${s.contested}${s.contested ? ` (${s.disputes} dispute(s))` : ""}`);
+        const me = await S.seat(p, s);
+        const f = await S.myFleet(p);
+        const phase = ["waiting for player 1", "waiting for an opponent", "playing", "over"][s.phase];
+        console.log(`  ${need()}\n  ${phase} · moves ${s.moves} · hits on 1: ${s.hits_on1}/12 · hits on 2: ${s.hits_on2}/12`);
+        if (s.phase === Phase.playing) {
+          const left = Math.max(0, Number(s.deadline) - Date.now() / 1000);
+          const who = me ? (Number(s.turn) === me ? "your move" : "their move") : `player ${s.turn} to move`;
+          console.log(`  ${who} · ${Math.floor(left / 60)}m ${Math.floor(left % 60)}s left`);
         }
+        if (s.phase === Phase.over) console.log(`  player ${s.winner} won${s.by_timeout ? " on time" : ""}${me ? (Number(s.winner) === me ? " (you)" : "") : ""}`);
         console.log("");
+        draw(s, me, f ? fromShips(f.ships) : null);
         break;
       }
       default:

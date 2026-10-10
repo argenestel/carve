@@ -1,14 +1,14 @@
 {
-  "name": "@bidlock/cli",
+  "name": "@salvo/cli",
   "private": true,
   "version": "0.1.0",
   "license": "Apache-2.0",
   "type": "module",
   "bin": {
-    "bidlock": "./src/index.ts"
+    "salvo": "./src/index.ts"
   },
   "scripts": {
-    "bidlock": "node --max-old-space-size=4096 --import tsx src/index.ts",
+    "salvo": "node --max-old-space-size=4096 --import tsx src/index.ts",
     "proof-server": "docker compose -f proof-server.yml up -d",
     "typecheck": "tsc --noEmit"
   },
@@ -31,7 +31,7 @@
     "@midnight-ntwrk/wallet-sdk-hd": "3.0.2",
     "@midnight-ntwrk/wallet-sdk-shielded": "3.0.1",
     "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "3.1.0",
-    "@bidlock/contract": "*",
+    "@salvo/contract": "*",
     "rxjs": "^7.8.2",
     "ws": "^8.18.0"
   },

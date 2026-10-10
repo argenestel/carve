@@ -2,10 +2,10 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import "./lib/network";
 import { type Wallet, WalletError, connectWallet, shortAddress } from "./lib/wallet";
-import { setWalletIndexer } from "./lib/tender";
+import { setWalletIndexer } from "./lib/game";
+import { GamePage } from "./pages/Game";
 import { Home } from "./pages/Home";
-import { NewTender } from "./pages/NewTender";
-import { TenderPage } from "./pages/TenderPage";
+import { NewGame } from "./pages/NewGame";
 
 type WalletCtx = { wallet: Wallet | null; connect: () => Promise<Wallet>; connecting: boolean; error: string | null };
 const Ctx = createContext<WalletCtx>(null as never);
@@ -18,8 +18,8 @@ const useRoute = () => {
     addEventListener("hashchange", on);
     return () => removeEventListener("hashchange", on);
   }, []);
-  const [path, query = ""] = hash.replace(/^#/, "").split("?");
-  return { parts: path.split("/").filter(Boolean), query: new URLSearchParams(query) };
+  const [path] = hash.replace(/^#/, "").split("?");
+  return { parts: path.split("/").filter(Boolean) };
 };
 
 export const go = (to: string) => {
@@ -30,7 +30,7 @@ export const App = () => {
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { parts, query } = useRoute();
+  const { parts } = useRoute();
 
   const connect = async () => {
     if (wallet) return wallet;
@@ -55,7 +55,7 @@ export const App = () => {
       <div className="page">
         <header className="bar">
           <a className="wordmark" href="#/">
-            bid<span>lock</span>
+            Salvo
           </a>
           <span className="pill net">Preprod</span>
           <span className="grow" />
@@ -70,7 +70,7 @@ export const App = () => {
           )}
         </header>
         {error && <div className="banner">{error}</div>}
-        {parts[0] === "new" ? <NewTender /> : parts[0] === "t" && parts[1] ? <TenderPage address={parts[1]} query={query} /> : <Home />}
+        {parts[0] === "new" ? <NewGame /> : parts[0] === "g" && parts[1] ? <GamePage key={parts[1]} address={parts[1]} /> : <Home />}
       </div>
     </Ctx.Provider>
   );

@@ -13,7 +13,7 @@ export type Network = {
   faucet?: string;
 };
 
-const PROOF_SERVER = process.env.BIDLOCK_PROOF_SERVER ?? "http://127.0.0.1:6300";
+const PROOF_SERVER = process.env.SALVO_PROOF_SERVER ?? "http://127.0.0.1:6300";
 
 // Since 2026-10-09 Preprod's public indexer and RPC are run by Blockfrost and
 // need a "Midnight Preprod" project token (BLOCKFROST_PROJECT_ID, nightpreprod…).
@@ -55,6 +55,6 @@ export const loadNetwork = (name: string): Network => {
 const ROOT = path.resolve(new URL(".", import.meta.url).pathname, "..");
 
 /** Local, git-ignored state: wallet seed and cache, private state DB, deployment record. */
-export const stateDir = (net: Network) => path.join(ROOT, ".bidlock", net.name);
+export const stateDir = (net: Network) => path.join(ROOT, ".salvo", net.name);
 
-export const ZK_CONFIG_PATH = path.resolve(ROOT, "..", "contract", "src", "managed", "bidlock");
+export const ZK_CONFIG_PATH = path.resolve(ROOT, "..", "contract", "src", "managed", "salvo");

@@ -1,14 +1,11 @@
-# Video script (about 3 minutes, two browsers side by side)
+# Demo script (about 3 minutes)
 
-Left: the **buyer** (Chrome profile A). Right: a **supplier** (Chrome profile B). Both run Lace on Preprod.
+**Setup:** two browser profiles (A and B), each with Lace on Preprod and funded from the faucet. The app runs locally (`npm run dev`) or deployed.
 
-**0:00** "In a sealed-bid tender you trust the buyer twice: not to leak bids, and that the lowest one really won. Bidlock removes both, on Midnight."
-**0:15** Buyer: **New tender** (ceiling €1.2M, short deadlines) → **Deploy**, approve in Lace. Copy the share link.
-**0:40** Supplier: open the link → **Request to bid** → copy the request link to the buyer. "My secret stays in my browser. The buyer only gets a hash."
-**0:55** Buyer: open the request link → **Qualify**. The supplier's page updates to *Your price*.
-**1:10** Supplier: €940,000 → **Seal bid**, approve in Lace. "That proved I'm qualified, it's my only bid, and it's under the ceiling, without revealing who I am or my price." Flip to **Public view**: just a hash.
-**1:40** After the deadline, supplier: **Reveal to buyer**. Buyer: the opening appears, readable only in the buyer's browser.
-**2:05** After the reveal window, buyer: **Award**. "The buyer proves every counted opening matches its sealed bid and the winner is the lowest. Only the winning price goes public."
-**2:25** Show the dispute path: a cut supplier gets **Prove it & dispute**, and the tender is stamped CONTESTED.
-**2:40** Flash `bidlock.compact` (the `award` loop) and the 27 passing tests.
-**2:55** "Public results, private prices. Bidlock."
+1. **Hook (15 s).** "Online Battleship needs a server you trust with both fleets. Salvo has no server. Your fleet never leaves your device, and every hit is proven."
+2. **Create (30 s, profile A).** New game, drag a ship, rotate one, then Create game. Show the two Lace approvals: deploy, then *prove and commit fleet*. Point out that only a hash went on-chain.
+3. **Join (30 s, profile B).** Paste the link, Shuffle, Join game. Lace proves the fleet is legal.
+4. **Play (60 s).** A fires three shots. B's board pulses with incoming shots. B picks three targets and fires: one transaction proves B's answers and fires back. A's board fills in proven hits and misses.
+5. **Try to cheat (20 s).** In B's devtools, edit the fleet in localStorage and try to fire. Proof generation fails with "That is not the fleet you committed to".
+6. **Spectate (15 s).** Open the link in a third window: both boards, every proven mark, no ships.
+7. **Close (10 s).** The clock, claiming a timeout, show-fleet at the end, and the same pattern for any hidden-information game.
