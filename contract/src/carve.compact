@@ -1,0 +1,208 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Carve: exclusive licensing with a private book.
+//
+// A licensor (an agency, a brand, a rights holder) sells rights to one
+// property, carved up by region, product category and time. Every grant goes
+// into the licensor's book, which lives only on their device; the ledger holds
+// a commitment to it and one commitment per grant. Issuing a grant proves,
+// against the whole book, that it does not overlap any exclusive grant already
+// sold. Nobody sees who bought what, on which terms, but every licensee knows
+// their exclusivity cannot be sold twice.
+//
+// Licensees accept their grant by proving they hold it, and can later prove to
+// a retailer or marketplace that they are licensed for one region and
+// category today, without showing the rest of the deal.
+
+pragma language_version >= 0.20;
+
+import CompactStandardLibrary;
+
+// ── Grants ──────────────────────────────────────────────────────────────────
+// A grant covers every region × category pair it lists, for [start, end).
+export struct Grant {
+  regions: Vector<8, Boolean>;
+  categories: Vector<8, Boolean>;
+  start: Uint<64>;
+  end: Uint<64>;
+  exclusive: Boolean;
+  // licensee_key of the one party who may accept and use the grant.
+  licensee: Bytes<32>;
+  // Hash of the commercial terms (fee, royalty rate, the signed agreement).
+  terms: Bytes<32>;
+  salt: Bytes<32>;
+}
+
+// Every grant issued so far, in order. Slots from `issued` on are unused.
+export struct Book {
+  grants: Vector<16, Grant>;
+  salt: Bytes<32>;
+}
+
+// What a licensee chose to prove in answer to a check.
+export struct Coverage {
+  grant: Uint<8>;
+  region: Uint<8>;
+  category: Uint<8>;
+  exclusive: Boolean;
+  at: Uint<64>;
+}
+
+export pure circuit book_size(): Uint<8> {
+  return 16;
+}
+
+// ── Ledger (public) ─────────────────────────────────────────────────────────
+// What is being licensed, e.g. "Mochi the Cat, character art".
+export sealed ledger title: Opaque<"string">;
+export ledger licensor: Bytes<32>;
+// Poseidon commitment to the licensor's book (salted, so it hides the book).
+export ledger book: Field;
+export ledger issued: Counter;
+// Grant number → commitment. Licensees check their terms against it.
+export ledger grants: Map<Uint<8>, Bytes<32>>;
+export ledger accepted: Set<Uint<8>>;
+// Check id (chosen by whoever asks) → what the licensee proved.
+export ledger checks: Map<Bytes<32>, Coverage>;
+
+// ── Witnesses (private state on the user's device) ──────────────────────────
+witness secret(): Bytes<32>;
+witness my_book(): Book;
+witness keep_book(b: Book): [];
+witness held_grant(id: Uint<8>): Grant;
+witness current_time(): Uint<64>;
+
+// ── Hashes (domain-separated) ───────────────────────────────────────────────
+export pure circuit licensor_key(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "carve:licensor:v1"), sk]);
+}
+
+export pure circuit licensee_key(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "carve:licensee:v1"), sk]);
+}
+
+export pure circuit grant_commitment(g: Grant): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "carve:grant:v1"), persistentHash<Grant>(g)]);
+}
+
+// The book is re-hashed on every issue, so it uses the circuit-friendly
+// Poseidon hash: SHA-256 over sixteen grants made the proving key 4×
+// larger. Grant commitments stay SHA-256, as licensees check them off-chain.
+export pure circuit book_commitment(b: Book): Field {
+  return transientHash<Book>(b);
+}
+
+// ── Rules ───────────────────────────────────────────────────────────────────
+pure circuit some(v: Vector<8, Boolean>): Boolean {
+  return v[0] || v[1] || v[2] || v[3] || v[4] || v[5] || v[6] || v[7];
+}
+
+pure circuit shared(a: Vector<8, Boolean>, b: Vector<8, Boolean>): Boolean {
+  return (a[0] && b[0]) || (a[1] && b[1]) || (a[2] && b[2]) || (a[3] && b[3]) ||
+         (a[4] && b[4]) || (a[5] && b[5]) || (a[6] && b[6]) || (a[7] && b[7]);
+}
+
+pure circuit has(v: Vector<8, Boolean>, k: Uint<8>): Boolean {
+  return (k == 0 && v[0]) || (k == 1 && v[1]) || (k == 2 && v[2]) || (k == 3 && v[3]) ||
+         (k == 4 && v[4]) || (k == 5 && v[5]) || (k == 6 && v[6]) || (k == 7 && v[7]);
+}
+
+export pure circuit well_formed(g: Grant): Boolean {
+  return g.start < g.end && some(g.regions) && some(g.categories);
+}
+
+// Two grants clash when either is exclusive and they share a region, a
+// category and some time.
+export pure circuit clashes(a: Grant, b: Grant): Boolean {
+  return (a.exclusive || b.exclusive) &&
+         a.start < b.end && b.start < a.end &&
+         shared(a.regions, b.regions) && shared(a.categories, b.categories);
+}
+
+export pure circuit covers(g: Grant, region: Uint<8>, category: Uint<8>, t: Uint<64>): Boolean {
+  return has(g.regions, region) && has(g.categories, category) && g.start <= t && t < g.end;
+}
+
+// The book with slot n set to g.
+pure circuit place(v: Vector<16, Grant>, n: Uint<8>, g: Grant): Vector<16, Grant> {
+  return [n == 0 ? g : v[0], n == 1 ? g : v[1], n == 2 ? g : v[2], n == 3 ? g : v[3],
+          n == 4 ? g : v[4], n == 5 ? g : v[5], n == 6 ? g : v[6], n == 7 ? g : v[7],
+          n == 8 ? g : v[8], n == 9 ? g : v[9], n == 10 ? g : v[10], n == 11 ? g : v[11],
+          n == 12 ? g : v[12], n == 13 ? g : v[13], n == 14 ? g : v[14], n == 15 ? g : v[15]];
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+// The current time, within a few minutes of the block's.
+circuit now(): Uint<64> {
+  const t = disclose(current_time());
+  assert(blockTimeGte(t), "Clock is ahead of the chain");
+  assert(blockTimeLt((t + 1800) as Uint<64>), "Clock is behind the chain");
+  return t;
+}
+
+// A grant this device holds, checked against the ledger and its licensee.
+circuit holding(id: Uint<8>): Grant {
+  assert(grants.member(id), "There is no grant with that number");
+  const g = held_grant(id);
+  assert(grant_commitment(g) == grants.lookup(id), "These are not the terms that were issued");
+  assert(g.licensee == licensee_key(secret()), "This grant names a different licensee");
+  return g;
+}
+
+// ── Opening a book ──────────────────────────────────────────────────────────
+// The constructor is not proven, so a client must check the deploy state:
+// `issued` is 0 and `grants` is empty. From then on every change is proven,
+// and while `issued` is 0 the book's slots are never read.
+constructor(name: Opaque<"string">) {
+  title = disclose(name);
+  licensor = disclose(licensor_key(secret()));
+  book = disclose(book_commitment(my_book()));
+}
+
+// ── Licensor ────────────────────────────────────────────────────────────────
+// Add a grant to the book. Proves it overlaps no exclusive grant issued before
+// (and, if exclusive, no grant at all) without revealing any of them.
+export circuit issue(g: Grant): [] {
+  assert(disclose(licensor_key(secret())) == licensor, "Only the licensor can issue grants");
+  const old = my_book();
+  assert(book_commitment(old) == book, "The book on this device is not the one on the ledger");
+  const n = issued.read();
+  assert(n < book_size(), "This book is full");
+  assert(well_formed(g), "A grant needs a region, a category and an end after its start");
+  for (const i of 0..16) {
+    if (i < n) {
+      assert(!clashes(old.grants[i], g), "Overlaps an exclusive grant already issued");
+    }
+  }
+  const k = n as Uint<8>;
+  const next = Book { grants: place(old.grants, k, g), salt: old.salt };
+  keep_book(next);
+  book = disclose(book_commitment(next));
+  grants.insert(k, disclose(grant_commitment(g)));
+  issued.increment(1);
+}
+
+// ── Licensee ────────────────────────────────────────────────────────────────
+// Countersign: prove you are the named licensee and hold the issued terms.
+export circuit accept(id: Uint<8>): [] {
+  const k = disclose(id);
+  holding(k);
+  assert(!accepted.member(k), "This grant is already accepted");
+  accepted.insert(k);
+}
+
+// Answer a check: prove one grant covers one region and category right now.
+// Nothing else about the grant (other regions, dates, terms, who holds it) is
+// disclosed.
+export circuit prove_rights(id: Uint<8>, region: Uint<8>, category: Uint<8>, check: Bytes<32>): [] {
+  const k = disclose(id);
+  const r = disclose(region);
+  const c = disclose(category);
+  const q = disclose(check);
+  const g = holding(k);
+  assert(accepted.member(k), "Accept the grant before using it");
+  assert(!checks.member(q), "This check has already been answered");
+  const t = now();
+  assert(covers(g, r, c, t), "That grant does not cover this region and category today");
+  checks.insert(q, Coverage { grant: k, region: r, category: c, exclusive: disclose(g.exclusive), at: t });
+}

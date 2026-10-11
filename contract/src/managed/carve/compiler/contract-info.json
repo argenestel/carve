@@ -1,0 +1,1111 @@
+{
+  "compiler-version": "0.31.1",
+  "language-version": "0.23.0",
+  "runtime-version": "0.16.0",
+  "circuits": [
+    {
+      "name": "book_size",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+      ],
+      "result-type": {
+        "type-name": "Uint",
+        "maxval": 255
+      }
+    },
+    {
+      "name": "licensor_key",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "sk",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "licensee_key",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "sk",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "grant_commitment",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "g",
+          "type": {
+            "type-name": "Struct",
+            "name": "Grant",
+            "elements": [
+              {
+                "name": "regions",
+                "type": {
+                  "type-name": "Vector",
+                  "length": 8,
+                  "type": {
+                    "type-name": "Boolean"
+                  }
+                }
+              },
+              {
+                "name": "categories",
+                "type": {
+                  "type-name": "Vector",
+                  "length": 8,
+                  "type": {
+                    "type-name": "Boolean"
+                  }
+                }
+              },
+              {
+                "name": "start",
+                "type": {
+                  "type-name": "Uint",
+                  "maxval": 18446744073709551615
+                }
+              },
+              {
+                "name": "end",
+                "type": {
+                  "type-name": "Uint",
+                  "maxval": 18446744073709551615
+                }
+              },
+              {
+                "name": "exclusive",
+                "type": {
+                  "type-name": "Boolean"
+                }
+              },
+              {
+                "name": "licensee",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              },
+              {
+                "name": "terms",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              },
+              {
+                "name": "salt",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "book_commitment",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "b",
+          "type": {
+            "type-name": "Struct",
+            "name": "Book",
+            "elements": [
+              {
+                "name": "grants",
+                "type": {
+                  "type-name": "Vector",
+                  "length": 16,
+                  "type": {
+                    "type-name": "Struct",
+                    "name": "Grant",
+                    "elements": [
+                      {
+                        "name": "regions",
+                        "type": {
+                          "type-name": "Vector",
+                          "length": 8,
+                          "type": {
+                            "type-name": "Boolean"
+                          }
+                        }
+                      },
+                      {
+                        "name": "categories",
+                        "type": {
+                          "type-name": "Vector",
+                          "length": 8,
+                          "type": {
+                            "type-name": "Boolean"
+                          }
+                        }
+                      },
+                      {
+                        "name": "start",
+                        "type": {
+                          "type-name": "Uint",
+                          "maxval": 18446744073709551615
+                        }
+                      },
+                      {
+                        "name": "end",
+                        "type": {
+                          "type-name": "Uint",
+                          "maxval": 18446744073709551615
+                        }
+                      },
+                      {
+                        "name": "exclusive",
+                        "type": {
+                          "type-name": "Boolean"
+                        }
+                      },
+                      {
+                        "name": "licensee",
+                        "type": {
+                          "type-name": "Bytes",
+                          "length": 32
+                        }
+                      },
+                      {
+                        "name": "terms",
+                        "type": {
+                          "type-name": "Bytes",
+                          "length": 32
+                        }
+                      },
+                      {
+                        "name": "salt",
+                        "type": {
+                          "type-name": "Bytes",
+                          "length": 32
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "salt",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Field"
+      }
+    },
+    {
+      "name": "well_formed",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "g",
+          "type": {
+            "type-name": "Struct",
+            "name": "Grant",
+            "elements": [
+              {
+                "name": "regions",
+                "type": {
+                  "type-name": "Vector",
+                  "length": 8,
+                  "type": {
+                    "type-name": "Boolean"
+                  }
+                }
+              },
+              {
+                "name": "categories",
+                "type": {
+                  "type-name": "Vector",
+                  "length": 8,
+                  "type": {
+                    "type-name": "Boolean"
+                  }
+                }
+              },
+              {
+                "name": "start",
+                "type": {
+                  "type-name": "Uint",
+                  "maxval": 18446744073709551615
+                }
+              },
+              {
+                "name": "end",
+                "type": {
+                  "type-name": "Uint",
+                  "maxval": 18446744073709551615
+                }
+              },
+              {
+                "name": "exclusive",
+                "type": {
+                  "type-name": "Boolean"
+                }
+              },
+              {
+                "name": "licensee",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              },
+              {
+                "name": "terms",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              },
+              {
+                "name": "salt",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Boolean"
+      }
+    },
+    {
+      "name": "clashes",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "a",
+          "type": {
+            "type-name": "Struct",
+            "name": "Grant",
+            "elements": [
+              {
+                "name": "regions",
+                "type": {
+                  "type-name": "Vector",
+                  "length": 8,
+                  "type": {
+                    "type-name": "Boolean"
+                  }
+                }
+              },
+              {
+                "name": "categories",
+                "type": {
+                  "type-name": "Vector",
+                  "length": 8,
+                  "type": {
+                    "type-name": "Boolean"
+                  }
+                }
+              },
+              {
+                "name": "start",
+                "type": {
+                  "type-name": "Uint",
+                  "maxval": 18446744073709551615
+                }
+              },
+              {
+                "name": "end",
+                "type": {
+                  "type-name": "Uint",
+                  "maxval": 18446744073709551615
+                }
+              },
+              {
+                "name": "exclusive",
+                "type": {
+                  "type-name": "Boolean"
+                }
+              },
+              {
+                "name": "licensee",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              },
+              {
+                "name": "terms",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              },
+              {
+                "name": "salt",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "b",
+          "type": {
+            "type-name": "Struct",
+            "name": "Grant",
+            "elements": [
+              {
+                "name": "regions",
+                "type": {
+                  "type-name": "Vector",
+                  "length": 8,
+                  "type": {
+                    "type-name": "Boolean"
+                  }
+                }
+              },
+              {
+                "name": "categories",
+                "type": {
+                  "type-name": "Vector",
+                  "length": 8,
+                  "type": {
+                    "type-name": "Boolean"
+                  }
+                }
+              },
+              {
+                "name": "start",
+                "type": {
+                  "type-name": "Uint",
+                  "maxval": 18446744073709551615
+                }
+              },
+              {
+                "name": "end",
+                "type": {
+                  "type-name": "Uint",
+                  "maxval": 18446744073709551615
+                }
+              },
+              {
+                "name": "exclusive",
+                "type": {
+                  "type-name": "Boolean"
+                }
+              },
+              {
+                "name": "licensee",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              },
+              {
+                "name": "terms",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              },
+              {
+                "name": "salt",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Boolean"
+      }
+    },
+    {
+      "name": "covers",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "g",
+          "type": {
+            "type-name": "Struct",
+            "name": "Grant",
+            "elements": [
+              {
+                "name": "regions",
+                "type": {
+                  "type-name": "Vector",
+                  "length": 8,
+                  "type": {
+                    "type-name": "Boolean"
+                  }
+                }
+              },
+              {
+                "name": "categories",
+                "type": {
+                  "type-name": "Vector",
+                  "length": 8,
+                  "type": {
+                    "type-name": "Boolean"
+                  }
+                }
+              },
+              {
+                "name": "start",
+                "type": {
+                  "type-name": "Uint",
+                  "maxval": 18446744073709551615
+                }
+              },
+              {
+                "name": "end",
+                "type": {
+                  "type-name": "Uint",
+                  "maxval": 18446744073709551615
+                }
+              },
+              {
+                "name": "exclusive",
+                "type": {
+                  "type-name": "Boolean"
+                }
+              },
+              {
+                "name": "licensee",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              },
+              {
+                "name": "terms",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              },
+              {
+                "name": "salt",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "region",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 255
+          }
+        },
+        {
+          "name": "category",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 255
+          }
+        },
+        {
+          "name": "t",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Boolean"
+      }
+    },
+    {
+      "name": "issue",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "g",
+          "type": {
+            "type-name": "Struct",
+            "name": "Grant",
+            "elements": [
+              {
+                "name": "regions",
+                "type": {
+                  "type-name": "Vector",
+                  "length": 8,
+                  "type": {
+                    "type-name": "Boolean"
+                  }
+                }
+              },
+              {
+                "name": "categories",
+                "type": {
+                  "type-name": "Vector",
+                  "length": 8,
+                  "type": {
+                    "type-name": "Boolean"
+                  }
+                }
+              },
+              {
+                "name": "start",
+                "type": {
+                  "type-name": "Uint",
+                  "maxval": 18446744073709551615
+                }
+              },
+              {
+                "name": "end",
+                "type": {
+                  "type-name": "Uint",
+                  "maxval": 18446744073709551615
+                }
+              },
+              {
+                "name": "exclusive",
+                "type": {
+                  "type-name": "Boolean"
+                }
+              },
+              {
+                "name": "licensee",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              },
+              {
+                "name": "terms",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              },
+              {
+                "name": "salt",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "accept",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "id",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 255
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "prove_rights",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "id",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 255
+          }
+        },
+        {
+          "name": "region",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 255
+          }
+        },
+        {
+          "name": "category",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 255
+          }
+        },
+        {
+          "name": "check",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    }
+  ],
+  "witnesses": [
+    {
+      "name": "secret",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "my_book",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Struct",
+        "name": "Book",
+        "elements": [
+          {
+            "name": "grants",
+            "type": {
+              "type-name": "Vector",
+              "length": 16,
+              "type": {
+                "type-name": "Struct",
+                "name": "Grant",
+                "elements": [
+                  {
+                    "name": "regions",
+                    "type": {
+                      "type-name": "Vector",
+                      "length": 8,
+                      "type": {
+                        "type-name": "Boolean"
+                      }
+                    }
+                  },
+                  {
+                    "name": "categories",
+                    "type": {
+                      "type-name": "Vector",
+                      "length": 8,
+                      "type": {
+                        "type-name": "Boolean"
+                      }
+                    }
+                  },
+                  {
+                    "name": "start",
+                    "type": {
+                      "type-name": "Uint",
+                      "maxval": 18446744073709551615
+                    }
+                  },
+                  {
+                    "name": "end",
+                    "type": {
+                      "type-name": "Uint",
+                      "maxval": 18446744073709551615
+                    }
+                  },
+                  {
+                    "name": "exclusive",
+                    "type": {
+                      "type-name": "Boolean"
+                    }
+                  },
+                  {
+                    "name": "licensee",
+                    "type": {
+                      "type-name": "Bytes",
+                      "length": 32
+                    }
+                  },
+                  {
+                    "name": "terms",
+                    "type": {
+                      "type-name": "Bytes",
+                      "length": 32
+                    }
+                  },
+                  {
+                    "name": "salt",
+                    "type": {
+                      "type-name": "Bytes",
+                      "length": 32
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "salt",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "keep_book",
+      "arguments": [
+        {
+          "name": "b",
+          "type": {
+            "type-name": "Struct",
+            "name": "Book",
+            "elements": [
+              {
+                "name": "grants",
+                "type": {
+                  "type-name": "Vector",
+                  "length": 16,
+                  "type": {
+                    "type-name": "Struct",
+                    "name": "Grant",
+                    "elements": [
+                      {
+                        "name": "regions",
+                        "type": {
+                          "type-name": "Vector",
+                          "length": 8,
+                          "type": {
+                            "type-name": "Boolean"
+                          }
+                        }
+                      },
+                      {
+                        "name": "categories",
+                        "type": {
+                          "type-name": "Vector",
+                          "length": 8,
+                          "type": {
+                            "type-name": "Boolean"
+                          }
+                        }
+                      },
+                      {
+                        "name": "start",
+                        "type": {
+                          "type-name": "Uint",
+                          "maxval": 18446744073709551615
+                        }
+                      },
+                      {
+                        "name": "end",
+                        "type": {
+                          "type-name": "Uint",
+                          "maxval": 18446744073709551615
+                        }
+                      },
+                      {
+                        "name": "exclusive",
+                        "type": {
+                          "type-name": "Boolean"
+                        }
+                      },
+                      {
+                        "name": "licensee",
+                        "type": {
+                          "type-name": "Bytes",
+                          "length": 32
+                        }
+                      },
+                      {
+                        "name": "terms",
+                        "type": {
+                          "type-name": "Bytes",
+                          "length": 32
+                        }
+                      },
+                      {
+                        "name": "salt",
+                        "type": {
+                          "type-name": "Bytes",
+                          "length": 32
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "salt",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "result type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "held_grant",
+      "arguments": [
+        {
+          "name": "id",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 255
+          }
+        }
+      ],
+      "result type": {
+        "type-name": "Struct",
+        "name": "Grant",
+        "elements": [
+          {
+            "name": "regions",
+            "type": {
+              "type-name": "Vector",
+              "length": 8,
+              "type": {
+                "type-name": "Boolean"
+              }
+            }
+          },
+          {
+            "name": "categories",
+            "type": {
+              "type-name": "Vector",
+              "length": 8,
+              "type": {
+                "type-name": "Boolean"
+              }
+            }
+          },
+          {
+            "name": "start",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          },
+          {
+            "name": "end",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          },
+          {
+            "name": "exclusive",
+            "type": {
+              "type-name": "Boolean"
+            }
+          },
+          {
+            "name": "licensee",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "terms",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "salt",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "current_time",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Uint",
+        "maxval": 18446744073709551615
+      }
+    }
+  ],
+  "contracts": [
+  ],
+  "ledger": [
+    {
+      "name": "title",
+      "index": 0,
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Opaque",
+        "tsType": "string"
+      }
+    },
+    {
+      "name": "licensor",
+      "index": 1,
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "book",
+      "index": 2,
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Field"
+      }
+    },
+    {
+      "name": "issued",
+      "index": 3,
+      "exported": true,
+      "storage": "Counter"
+    },
+    {
+      "name": "grants",
+      "index": 4,
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Uint",
+        "maxval": 255
+      },
+      "value": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "accepted",
+      "index": 5,
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Uint",
+        "maxval": 255
+      }
+    },
+    {
+      "name": "checks",
+      "index": 6,
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Bytes",
+        "length": 32
+      },
+      "value": {
+        "type-name": "Struct",
+        "name": "Coverage",
+        "elements": [
+          {
+            "name": "grant",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 255
+            }
+          },
+          {
+            "name": "region",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 255
+            }
+          },
+          {
+            "name": "category",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 255
+            }
+          },
+          {
+            "name": "exclusive",
+            "type": {
+              "type-name": "Boolean"
+            }
+          },
+          {
+            "name": "at",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

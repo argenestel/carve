@@ -1,5 +1,5 @@
 {
-  "name": "@salvo/contract",
+  "name": "@carve/contract",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "private": true,
@@ -14,8 +14,8 @@
     }
   },
   "scripts": {
-    "compact": "compact compile +0.31.1 src/salvo.compact src/managed/salvo",
-    "compact:fast": "compact compile +0.31.1 --skip-zk src/salvo.compact src/managed/salvo",
+    "compact": "compact compile +0.31.1 src/carve.compact src/managed/carve",
+    "compact:fast": "compact compile +0.31.1 --skip-zk src/carve.compact src/managed/carve",
     "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/managed dist/managed",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"

@@ -2,10 +2,13 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import "./lib/network";
 import { type Wallet, WalletError, connectWallet, shortAddress } from "./lib/wallet";
-import { setWalletIndexer } from "./lib/game";
-import { GamePage } from "./pages/Game";
+import { setWalletIndexer } from "./lib/carve";
+import { BookPage } from "./pages/Book";
+import { CheckPage } from "./pages/Check";
 import { Home } from "./pages/Home";
-import { NewGame } from "./pages/NewGame";
+import { LicensePage } from "./pages/License";
+import { LicensesPage } from "./pages/Licenses";
+import { NewBook } from "./pages/NewBook";
 
 type WalletCtx = { wallet: Wallet | null; connect: () => Promise<Wallet>; connecting: boolean; error: string | null };
 const Ctx = createContext<WalletCtx>(null as never);
@@ -55,10 +58,18 @@ export const App = () => {
       <div className="page">
         <header className="bar">
           <a className="wordmark" href="#/">
-            Salvo
+            Carve
           </a>
           <span className="pill net">Preprod</span>
           <span className="grow" />
+          <nav className="nav">
+            <a href="#/new" className={parts[0] === "new" || parts[0] === "b" ? "on" : ""}>
+              Books
+            </a>
+            <a href="#/me" className={parts[0] === "me" || parts[0] === "l" ? "on" : ""}>
+              Licenses
+            </a>
+          </nav>
           {wallet ? (
             <span className="wallet-chip" title={wallet.shieldedAddress}>
               <span className="dot" /> {shortAddress(wallet.shieldedAddress)}
@@ -70,8 +81,18 @@ export const App = () => {
           )}
         </header>
         {error && <div className="banner">{error}</div>}
-        {parts[0] === "new" ? <NewGame /> : parts[0] === "g" && parts[1] ? <GamePage key={parts[1]} address={parts[1]} /> : <Home />}
+        <Route parts={parts} />
       </div>
     </Ctx.Provider>
   );
+};
+
+const Route = ({ parts }: { parts: string[] }) => {
+  const [page, a, b, c, d] = parts;
+  if (page === "new") return <NewBook />;
+  if (page === "me") return <LicensesPage />;
+  if (page === "b" && a) return <BookPage key={a} address={a} />;
+  if (page === "l" && a) return <LicensePage key={a} code={a} />;
+  if (page === "c" && a && d) return <CheckPage key={d} address={a} region={Number(b)} category={Number(c)} check={d} />;
+  return <Home />;
 };

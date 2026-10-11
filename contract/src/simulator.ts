@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// In-process simulator: runs the compiled Salvo circuits against an in-memory
+// In-process simulator: runs the compiled Carve circuits against an in-memory
 // ledger with a controllable block clock. No proof server or network. Used by
 // the tests.
 
@@ -12,50 +12,56 @@ import {
   createConstructorContext,
   sampleContractAddress,
 } from "@midnight-ntwrk/compact-runtime";
-import { Contract, type Ledger, type Shot, ledger } from "./managed/salvo/contract/index.js";
-import { type Placement, type SalvoPrivateState, makeWitnesses, newPlayer, randomBytes, toFleet } from "./witnesses.js";
+import { Contract, type Grant, type Ledger, ledger } from "./managed/carve/contract/index.js";
+import { type CarvePrivateState, makeWitnesses, newHolder, newLicensor, randomBytes } from "./witnesses.js";
 
-export const MINUTE = 60n;
-export const HOUR = 3_600n;
+export const DAY = 86_400n;
+export const YEAR = 365n * DAY;
 
 const COIN_PK = "0".repeat(64);
 
-/** Pad a salvo to the circuit's three slots. */
-export const salvo = (shots: [number, number][]): { shots: Shot[]; count: bigint } => {
-  const v = shots.map(([x, y]) => ({ x: BigInt(x), y: BigInt(y) }));
-  while (v.length < 3) v.push({ x: 0n, y: 0n });
-  return { shots: v, count: BigInt(shots.length) };
-};
-
-export class SalvoSimulator {
+export class CarveSimulator {
   /** Block time, seconds since the Unix epoch. */
   now: bigint;
-  /** What the next move claims the time is. Defaults to the block time. */
+  /** What the next proof claims the time is. Defaults to the block time. */
   claimedTime: bigint | null = null;
 
-  readonly contract = new Contract<SalvoPrivateState>(makeWitnesses(() => this.claimedTime ?? this.now));
+  readonly contract = new Contract<CarvePrivateState>(makeWitnesses(() => this.claimedTime ?? this.now));
   readonly address = sampleContractAddress();
+  /** The contract state right after deployment, and its ledger. */
+  readonly deployContractState: ChargedState;
+  readonly deployState: Ledger;
   private state: ChargedState;
   private zswap: EncodedZswapLocalState;
-  private readonly players = new Map<string, SalvoPrivateState>();
+  private readonly users = new Map<string, CarvePrivateState>();
 
-  constructor(opts: { now: bigint; moveTime?: bigint }) {
+  /** Deploy a book for `title`, opened by `licensor`. */
+  constructor(opts: { now: bigint; title?: string; licensor?: string }) {
     this.now = opts.now;
-    const init = this.contract.initialState(createConstructorContext(newPlayer(), COIN_PK), opts.moveTime ?? HOUR);
+    const who = opts.licensor ?? "licensor";
+    const init = this.contract.initialState(createConstructorContext(newLicensor(), COIN_PK), opts.title ?? "Mochi the Cat");
     this.state = init.currentContractState.data;
     this.zswap = init.currentZswapLocalState;
+    this.users.set(who, init.currentPrivateState);
+    this.deployContractState = this.state;
+    this.deployState = ledger(this.state);
   }
 
-  addPlayer(name: string, ships: Placement[] | null, secret: Uint8Array = randomBytes()) {
-    this.players.set(name, newPlayer(ships ? toFleet(ships) : null, secret));
+  addUser(name: string, secret: Uint8Array = randomBytes()) {
+    this.users.set(name, newHolder(secret));
   }
-  setPrivateState(name: string, ps: SalvoPrivateState) {
-    this.players.set(name, ps);
+  setPrivateState(name: string, ps: CarvePrivateState) {
+    this.users.set(name, ps);
   }
-  privateState(name: string): SalvoPrivateState {
-    const ps = this.players.get(name);
-    if (!ps) throw new Error(`Unknown player ${name}`);
+  privateState(name: string): CarvePrivateState {
+    const ps = this.users.get(name);
+    if (!ps) throw new Error(`Unknown user ${name}`);
     return ps;
+  }
+  /** Hand a grant to its licensee, as the licensor would with a license code. */
+  give(name: string, id: number, g: Grant) {
+    const ps = this.privateState(name);
+    this.users.set(name, { ...ps, held: { ...ps.held, [id]: g } });
   }
   get contractState(): ChargedState {
     return this.state;
@@ -67,28 +73,24 @@ export class SalvoSimulator {
     this.now += seconds;
   }
 
-  private run(who: string, call: (c: CircuitContext<SalvoPrivateState>) => { context: CircuitContext<SalvoPrivateState> }) {
+  private run(who: string, call: (c: CircuitContext<CarvePrivateState>) => { context: CircuitContext<CarvePrivateState> }) {
     const ctx = createCircuitContext(this.address, this.zswap, this.state, this.privateState(who), undefined, undefined, Number(this.now));
     const { context } = call(ctx);
     this.state = context.currentQueryContext.state;
     this.zswap = context.currentZswapLocalState;
-    this.players.set(who, context.currentPrivateState);
+    this.users.set(who, context.currentPrivateState);
   }
 
-  join(who: string) {
-    this.run(who, (c) => this.contract.impureCircuits.join(c));
+  /** Issue a grant; returns its number. */
+  issue(who: string, g: Grant): number {
+    const id = Number(this.getLedger().issued);
+    this.run(who, (c) => this.contract.impureCircuits.issue(c, g));
+    return id;
   }
-  play(who: string, shots: [number, number][]) {
-    const s = salvo(shots);
-    this.run(who, (c) => this.contract.impureCircuits.play(c, s.shots, s.count));
+  accept(who: string, id: number) {
+    this.run(who, (c) => this.contract.impureCircuits.accept(c, BigInt(id)));
   }
-  claimTimeout(who: string) {
-    this.run(who, (c) => this.contract.impureCircuits.claim_timeout(c));
-  }
-  resign(who: string) {
-    this.run(who, (c) => this.contract.impureCircuits.resign(c));
-  }
-  showFleet(who: string) {
-    this.run(who, (c) => this.contract.impureCircuits.show_fleet(c));
+  proveRights(who: string, id: number, region: number, category: number, check: Uint8Array) {
+    this.run(who, (c) => this.contract.impureCircuits.prove_rights(c, BigInt(id), BigInt(region), BigInt(category), check));
   }
 }

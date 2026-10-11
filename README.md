@@ -1,131 +1,146 @@
-# Salvo
+# Carve
 
-**Battleship on Midnight, with no one to trust.** Your fleet never leaves your device, and every hit or miss your opponent reports is checked by a zero-knowledge proof.
+**Sell exclusive rights. Keep your book private.** Carve lets a rights holder license a property (a character, a brand, a song) by region, product category and time. Midnight proves each new grant doesn't overlap an exclusive one already sold, and nobody, not even the licensees, sees who else bought what.
 
 ## The problem
 
-Hidden-information games are what online play does worst. Battleship, poker, fog-of-war strategy and card drafting all need someone to hold the secrets:
+Licensing runs on exclusivity: *"you are the only one selling Mochi the Cat drinks in South Asia until 2028"*. Today that promise is only as good as the licensor's spreadsheet:
 
-- **A game server** sees both fleets. It can leak them, be hacked, or be bribed, and you have to take its word for every result.
-- **Fully on-chain** games can't hide anything: everything on a public chain is public.
-- **Commit-reveal** schemes only catch a cheater at the end, after the game is lost, and a losing player can simply walk away instead of revealing.
+- **Licensees can't verify it.** The licensor's deal book is confidential: competitors' names, territories, fees. A licensee has to trust that nobody else was sold the same rights. Overlapping grants are a common source of licensing disputes, and they are found after the money is spent.
+- **Licensors can't prove it** without showing their whole book, which they never will.
+- **Retailers and marketplaces can't check it.** "Are you actually licensed for this?" is answered with a PDF.
 
-Midnight lets each player keep their own secret and *prove* every answer about it as the game goes on.
+A public registry would fix verification and destroy confidentiality. Midnight lets the licensor keep the book private and *prove* things about it.
 
-## How Salvo works
+## How Carve works
 
-| Step | What happens | Proven in zero knowledge | What stays private |
-|---|---|---|---|
-| **Hide** | Each player commits to their fleet: a hash goes on-chain | the fleet is legal: 4 ships (4, 3, 3, 2) inside the 8×8 sea, no overlaps | where every ship is |
-| **Fire** | The player to move fires a salvo of up to 3 shots | it's their turn, the shots are on the board, no repeats | nothing; shots are public |
-| **Answer** | On their next move, the defender answers each incoming shot | each hit or miss is true for the committed fleet | the fleet; only "hit" or "miss" is published |
-| **Sink** | First to hit all 12 cells wins | the shooter's hits really total 12 | the loser's remaining ships |
-| **Clock** | Every move restarts the opponent's clock (10 min, 1 hour or 1 day) | the move's timestamp is within 30 min of the block's | — |
+| Step | Who | What happens | Proven in zero knowledge | What stays private |
+|---|---|---|---|---|
+| **Open a book** | licensor | Deploys a contract for one property; the title is public | — | the book (empty, salted) |
+| **Issue** | licensor | Adds a grant: regions × categories × period, exclusive or not, for one licensee | the grant overlaps **no exclusive grant in the whole book** (and if exclusive, no grant at all); the book on the device is the one committed on-chain, with nothing removed | every grant, every licensee, every term |
+| **Accept** | licensee | Opens the license link, checks it against the ledger, countersigns | they are the named licensee; these exact terms were issued | who they are, what they hold |
+| **Prove** | licensee | Answers a retailer's check: *"licensed for Food & drink in South Asia?"* | their accepted grant covers that region and category **today** | their other regions, dates, terms and identity |
 
-Answering and firing happen in **one transaction**: your move proves your answers to their last salvo and fires yours. A whole game is about 10 to 15 moves each.
+The ledger only ever holds a **commitment to the book**, a **commitment per grant**, the **count** of grants, which ones are **accepted**, and the **answers to checks**. The book lives on the licensor's device. Each grant reaches its licensee privately, as a link.
 
-**Nobody can cheat:**
-- *Lying about a hit:* the answer proof fails.
-- *Moving a ship mid-game:* every answer is checked against the original commitment.
-- *An illegal fleet* (overlapping, off the board, or missing ships): the commitment proof fails.
-- *Refusing to answer when losing:* the clock runs out and the opponent claims the win on-chain.
-
-Ship positions never touch the ledger, not even as arguments to ledger operations, so nothing on-chain reveals them. After the game, either player can **show their fleet**. It is checked against their commitment and drawn on the opponent's board.
+**What it rules out:**
+- *Double-selling exclusivity:* `issue` checks the new grant against every earlier grant in a proof. It can't be produced for an overlap, even by the licensor's own client.
+- *Quietly deleting a grant to make room:* the book is committed on-chain, and `issue` proves the book it checks against is that commitment.
+- *Changing terms after the deal:* the licensee checks their opening against the grant's commitment, and `accept` proves it.
+- *Someone else using your license:* `accept` and `prove_rights` require the secret behind the licensee key named in the grant.
+- *A tampered deployment:* the constructor isn't proven, so the app reads the **deploy transaction's state** and shows *Started clean* only if the book began empty. Every change after that is proven.
 
 ## Run it
 
-Salvo is a real dApp on **Midnight Preprod**. Every move is a transaction you prove and sign in Lace.
+Carve is a real dApp on **Midnight Preprod**. Every action is a transaction you prove and sign in Lace.
 
 ### Requirements
 
 - [Lace](https://www.lace.io/) with Midnight enabled and set to **Preprod**, funded with tNIGHT from the [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/). Fees are paid in tDUST, generated from tNIGHT.
 - Node 22+, Compact toolchain `0.31.1`.
 
-> Since 2026-10-09 the Preprod indexer and RPC are run by [Blockfrost](https://blockfrost.io) (see the [Midnight docs](https://docs.midnight.network/guides/networks-and-environments)). The web app reads through the indexer configured in Lace. To let people watch games *without* a wallet, set `VITE_BLOCKFROST_PROJECT_ID` (see `app/.env.example`). The CLI needs `BLOCKFROST_PROJECT_ID`.
+> Since 2026-10-09 the Preprod indexer and RPC are run by [Blockfrost](https://blockfrost.io) (see the [Midnight docs](https://docs.midnight.network/guides/networks-and-environments)). The web app reads through the indexer configured in Lace. To let people read books and checks *without* a wallet, set `VITE_BLOCKFROST_PROJECT_ID` (see `app/.env.example`). The CLI needs `BLOCKFROST_PROJECT_ID`.
 
 ### Web app
 
 ```bash
 npm install
-npm run compile        # compact compile +0.31.1 → contract/src/managed/salvo (keys + zkir)
+npm run compile        # compact compile +0.31.1 → contract/src/managed/carve (keys + zkir)
 npm run build --workspace contract
 npm run dev            # → http://localhost:5173
 ```
 
-1. **New game:** place your fleet (tap a ship to move it, tap it again to turn it, or Shuffle) and pick the time per move. **Create game** asks Lace twice: once to deploy, once to prove and commit your fleet.
-2. **Send the link.** Your opponent opens it, places their fleet and clicks **Join game**.
-3. **Play.** On your move, tap up to three cells in *Enemy waters* and click **Fire**. Incoming shots pulse on your own board, and your Fire transaction proves your answers to them.
-4. If your opponent's clock runs out, click **Claim the win**. After the game, **Show my fleet to them**.
+Use two browser profiles, each with Lace: one for the **licensor**, one for the **licensee**.
 
-Anyone with the link who isn't playing sees both boards with every proven hit and miss, and no ships.
+1. **Licensee:** open **Licenses** and copy your licensee ID. Send it to the licensor.
+2. **Licensor:** **Open a book**, name the property, approve in Lace. On the rights map, tap regions and categories, pick a period, paste the licensee ID and click **Issue grant**. The map shows clashes before you prove; **Try anyway** sends it to the contract, which refuses.
+3. **Licensor:** copy the license link and send it to the licensee.
+4. **Licensee:** open the link. Carve checks it against the ledger (issued, names you, terms match). Click **Accept license**.
+5. **Retailer** (anyone): open the book, pick a region and category, **Create check**, and send the link to the licensee. The licensee opens it and clicks **Prove it**. The retailer's page flips to *Exclusive* or *Licensed*.
 
-Your secret and fleet are kept in this browser's localStorage, scoped to the game. Use the same browser for the whole game.
+Each browser's identity secret, the licensor's book and the licensee's grants are kept in that browser's localStorage. The licensor must use the same browser for every issue.
 
 ### CLI
 
-A headless player for scripted games, or to play a friend in the browser from your terminal.
+A headless client for scripted runs, or to play one side from a terminal.
 
 ```bash
 export BLOCKFROST_PROJECT_ID=nightpreprod...
 npm run proof-server --workspace cli    # midnightntwrk/proof-server:8.0.3 on :6300 (needs Docker)
 
-npm run salvo -- new 60                          # 60 minutes per move, random fleet
-npm run salvo -- join <address> --fleet "A1h B3h C5v F2v"
-npm run salvo -- fire A1 B2 C3
-npm run salvo -- board
-npm run salvo -- claim | resign | show
+npm run carve -- id --as ana                        # ana's licensee ID
+npm run carve -- new "Mochi the Cat (character art)"
+npm run carve -- issue --to ana --regions "south asia" --categories food --from 2027-01 --months 24 --terms "8% royalty"
+npm run carve -- issue --to ben --regions "south asia" --categories food --from 2027-06   # refused: overlaps #1
+npm run carve -- accept <license code> --as ana
+npm run carve -- prove 1 "south asia" food <check id> --as ana
+npm run carve -- book
 ```
 
-The first run prints a wallet address; fund it from the faucet. Local secrets live in `cli/.salvo/<network>/` (git-ignored). `--as <name>` keeps separate players' private state apart.
+The first run prints a wallet address; fund it from the faucet. Local secrets live in `cli/.carve/<network>/` (git-ignored). `--as <name>` keeps separate users' identities and private state apart.
 
 ### Tests
 
 ```bash
-npm test     # 19 contract tests
+npm test     # 28 contract tests
 ```
 
-The suite runs the compiled circuits against a controllable block clock. It covers:
-- **fleet legality:** the circuit agrees with the TypeScript rules on random fleets, and out-of-bounds, overlapping and illegal joins are rejected;
-- **joining:** start, waiting, a third player, the minimum move time;
-- **proven answers:** hits, misses and counts;
-- **rejected moves:** playing out of turn or as an outsider, answering with a swapped fleet, empty, off-board, duplicate and repeated shots;
-- **sinking** a fleet to win;
-- **the clock:** claiming too early or by the wrong player, a backdated or future-dated move;
-- **after the game:** resigning, and showing a fleet that is checked against its commitment.
+The suite runs the compiled circuits against an in-memory ledger with a controllable block clock. It covers:
+- **opening a book:** clean deploy state, public title and keys only;
+- **issuing:**
+  - overlaps refused;
+  - differences in region, category or time allowed, including back-to-back periods;
+  - multi-region × multi-category overlaps;
+  - every earlier grant checked, not just the last;
+  - non-exclusive grants stacking but never with an exclusive one;
+  - malformed grants refused;
+  - outsiders refused;
+  - a book with a grant removed, or a stale copy of the book, refused;
+  - the 16-grant limit;
+  - commitments that differ even for identical terms;
+  - the circuit's clash rule agreeing with the TypeScript one on 300 random pairs;
+- **licensees:** the named licensee accepts; someone else with the same terms, altered terms, unknown grants and double acceptance are refused;
+- **proving rights:**
+  - covered region and category today;
+  - uncovered region, category or dates refused, including not-yet-started and expired grants;
+  - unaccepted grants refused;
+  - someone else's secret refused;
+  - a reused check refused;
+  - a clock far from the chain's refused;
+- **license codes:** round trip, garbage rejected.
 
 ## Architecture
 
 ```
-contract/  salvo.compact · witnesses · simulator · tests                @salvo/contract
-app/       React + Vite dApp: Lace connector v4, wallet-side proving   @salvo/app
-cli/       midnight-js 4.1.1 + wallet-sdk; preprod / preview / local   @salvo/cli
+contract/  carve.compact · witnesses · rights (TS mirror, license codes) · simulator · tests   @carve/contract
+app/       React + Vite dApp: Lace connector v4, wallet-side proving                           @carve/app
+cli/       midnight-js 4.1.1 + wallet-sdk; preprod / preview / local                           @carve/cli
 ```
 
-**Public ledger:** player keys (hashes of per-game secrets), fleet commitments, whose turn it is, the incoming salvo, every answered shot (cell → hit), hit counters, the move deadline, the winner, and any fleets shown after the game.
+**Public ledger:** `title` · `licensor` (key) · `book` (commitment) · `issued` (count) · `grants` (number → commitment) · `accepted` (set of numbers) · `checks` (check id → grant number, region, category, exclusive, time).
 
-**Private state** (each player's device): the player secret and the fleet (four ships and a salt).
+**Private state** (each user's device): an identity secret, from which the licensor and licensee keys are derived. The licensor also holds the **book**: up to 16 grants and a salt. The licensee also holds the **grants** issued to them.
 
 | Circuit | Caller | Key checks |
 |---|---|---|
-| `constructor` | creator | at least 60 s per move (not proven, so it commits nothing secret) |
-| `join` | each player | the fleet is legal; commitment = H(fleet, salt); the second join starts the clock |
-| `play` | player to move | their turn; each incoming shot answered against their committed fleet; 1 to 3 new shots on the board, unrepeated; win at 12 hits |
-| `claim_timeout` | waiting player | the deadline has passed |
-| `resign` | either player | is a player |
-| `show_fleet` | either player | the game is over; the fleet matches its commitment |
+| `constructor` | licensor | sets title, licensor key and the empty book's commitment (not proven, so clients verify the deploy state) |
+| `issue(grant)` | licensor | caller is the licensor; book opening = on-chain commitment; book not full; grant well-formed; no clash with any of the first `issued` grants; writes the new book commitment and the grant commitment |
+| `accept(id)` | licensee | grant opening = `grants[id]`; caller's key = the grant's licensee; not yet accepted |
+| `prove_rights(id, region, category, check)` | licensee | as `accept`, plus accepted; check unused; grant covers region and category at the current time |
 
-Hashes are domain-separated (`salvo:player:v1`, `salvo:fleet:v1`). A move's timestamp comes from a witness and is bounded by `blockTimeGte` and `blockTimeLt`, so a player can't backdate a move to shorten their opponent's clock.
+Two grants **clash** when either is exclusive and they share a region, a category and some time. Grant commitments are SHA-256 (`persistentHash`), domain-separated (`carve:grant:v1`), and salted. The book commitment is Poseidon (`transientHash`), salted, because every `issue` re-hashes the whole book in-circuit, and SHA-256 over 16 grants made the proving key four times larger (76 MB, now 19 MB). Times come from a witness bounded by `blockTimeGte` and `blockTimeLt`.
 
 ## Limitations
 
-- **Board size.** 8×8 with four ships keeps proofs small (the `play` prover key is 5 MB). The circuit is parameterised by constants, so a classic 10×10 is a recompile.
-- **No "sunk" call-outs.** Announcing which ship sank would need ledger lookups keyed by ship cells, which would reveal positions. Proving it from the public shot history without leaking anything is on the roadmap.
-- **Browser storage.** Your fleet lives in localStorage, unencrypted and tied to one browser. Lose it mid-game and you can't answer, so you lose on time. **Next:** an encrypted export.
-- **Fees.** Each move is a transaction paid in tDUST.
+- **One book per contract, 16 grants.** The book is a fixed-size vector that is hashed in every `issue` proof. **Next:** a Merkle-tree book, so `issue` only touches the grants that share a region.
+- **The property's identity is off-chain.** Nothing stops a licensor from opening two books for the same character. **Next:** a registry contract that binds a property to one book and to its owner's credential.
+- **The grant count is public.** Anyone can see how many deals a property has. Padding with dummy grants hides it at the cost of slots.
+- **Browser storage.** The book and grants live in localStorage, unencrypted and tied to one browser. **Next:** an encrypted export, and wallet-derived identity.
+- **Fees.** Each action is a transaction paid in tDUST.
 
 ## Roadmap
 
-Encrypted fleet backup · private "sunk" proofs · open-games lobby · wagers held in escrow by the contract · the same commit-and-prove pattern for other hidden-information games (Stratego-style, fog-of-war).
+Merkle-tree books with hundreds of grants · property registry and owner credentials · sublicensing (a licensee carves their own grant into sub-grants, proven to stay inside it) · royalty reporting proven against the grant's terms · marketplace integration for the check flow.
 
 ## License
 

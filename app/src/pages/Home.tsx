@@ -1,99 +1,90 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useState } from "react";
+import { type Grant, makeGrant } from "@carve/contract";
 import { go } from "../App";
-import { isAddress, recentGames } from "../lib/game";
-import { Board, type Mark } from "./Board";
+import { heldLicenses, recentBooks } from "../lib/carve";
+import { RightsMap } from "./RightsMap";
 
-const parseGame = (s: string) => {
-  const m = s.trim().match(/([0-9a-fA-F]{64})/);
-  return m && isAddress(m[1]) ? m[1] : null;
-};
-
-// The illustration: a fleet mid-game.
-const ART_SHIPS = [
-  { x: 1, y: 1, vertical: false },
-  { x: 6, y: 2, vertical: true },
-  { x: 1, y: 4, vertical: true },
-  { x: 3, y: 6, vertical: false },
+// The illustration: a book mid-season, and a new grant that clashes with #1.
+const art = (regions: number[], categories: number[], exclusive = true): Grant =>
+  makeGrant({ regions, categories, start: 0n, end: 1n, exclusive, licensee: new Uint8Array(32), salt: new Uint8Array(32) });
+const ART = [
+  { id: 0, grant: art([5], [2]) },
+  { id: 1, grant: art([2, 3], [0, 1]) },
+  { id: 2, grant: art([0], [4, 5], false) },
+  { id: 3, grant: art([6, 7], [3]) },
+  { id: 4, grant: art([1], [6, 7]) },
 ];
-const ART_MARKS: Record<string, Mark> = {
-  "11": "hit",
-  "21": "hit",
-  "62": "hit",
-  "05": "miss",
-  "43": "miss",
-  "70": "miss",
-  "36": "hit",
-  "57": "miss",
-  "44": "incoming",
-  "15": "incoming",
-};
+const DRAFT = { regions: [false, false, false, false, false, true, true, false], categories: [false, false, true, false, false, false, false, false] };
 
 export const Home = () => {
-  const [link, setLink] = useState("");
-  const recent = recentGames();
-  const target = parseGame(link);
-
+  const books = recentBooks();
+  const held = heldLicenses();
   return (
     <main className="home">
       <div className="hero-grid">
         <section className="hero">
           <h1>
-            Hidden fleets.
+            Sell exclusive rights.
             <br />
-            <em>Proven hits.</em>
+            <em>Keep your book private.</em>
           </h1>
           <p>
-            Battleship on Midnight. Your ships never leave your device, and every hit or miss is checked by a zero-knowledge proof. No server, no referee, and
-            no way to cheat.
+            License a character, a brand or a song by region, category and time. Every new grant is proven not to overlap an exclusive one, and nobody sees who
+            bought what.
           </p>
           <div className="hero-actions">
             <button className="btn primary big" onClick={() => go("/new")}>
-              New game
+              Open a book
             </button>
-            <form
-              className="join-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (target) go(`/g/${target}`);
-              }}
-            >
-              <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="Paste a game link" spellCheck={false} />
-              <button className="btn" disabled={!target}>
-                Join
-              </button>
-            </form>
+            <button className="btn big" onClick={() => go("/me")}>
+              I'm a licensee
+            </button>
           </div>
         </section>
         <div className="hero-art" aria-hidden>
-          <Board ships={ART_SHIPS} mark={(x, y) => ART_MARKS[`${x}${y}`] ?? null} />
+          <RightsMap layers={ART} draft={DRAFT} clashIds={[0]} />
         </div>
       </div>
 
       <ol className="how">
         <li>
-          <b>Hide</b> Place four ships. Only a hash goes on-chain, with a proof the fleet is legal.
+          <b>Issue</b> The licensor's proof checks the new grant against their whole private book. An overlap can't be issued.
         </li>
         <li>
-          <b>Fire</b> Three shots a turn. Your opponent must answer with a proof, so they can't lie about a hit.
+          <b>Accept</b> The licensee checks their terms against the ledger and countersigns with a proof that they're the one named.
         </li>
         <li>
-          <b>Sink</b> First to hit all 12 cells wins. Stall too long and you lose on time.
+          <b>Prove</b> A retailer asks "licensed for food in South Asia?" The licensee proves it, and shows nothing else.
         </li>
       </ol>
 
-      {recent.length > 0 && (
-        <section className="recent">
-          <h2>Your games</h2>
-          {recent.map((r) => (
-            <a key={r.address} href={`#/g/${r.address}`}>
-              <span className="mono">
-                {r.address.slice(0, 10)}…{r.address.slice(-6)}
-              </span>
-              <span className="muted">{new Date(r.at).toLocaleDateString()}</span>
-            </a>
-          ))}
-        </section>
+      {(books.length > 0 || held.length > 0) && (
+        <div className="recent-grid">
+          {books.length > 0 && (
+            <section className="recent">
+              <h2>Books</h2>
+              {books.map((r) => (
+                <a key={r.address} href={`#/b/${r.address}`}>
+                  <span>{r.title}</span>
+                  <span className="mono muted">{r.address.slice(0, 10)}…</span>
+                </a>
+              ))}
+            </section>
+          )}
+          {held.length > 0 && (
+            <section className="recent">
+              <h2>Licenses</h2>
+              {held.map((h) => (
+                <a key={`${h.address}${h.id}`} href={`#/l/${h.code}`}>
+                  <span>
+                    {h.title} · #{h.id + 1}
+                  </span>
+                  <span className="mono muted">{h.address.slice(0, 10)}…</span>
+                </a>
+              ))}
+            </section>
+          )}
+        </div>
       )}
     </main>
   );

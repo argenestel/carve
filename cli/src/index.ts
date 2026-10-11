@@ -1,148 +1,185 @@
 #!/usr/bin/env -S node --import tsx
 // SPDX-License-Identifier: Apache-2.0
 //
-// salvo: play Battleship on a Midnight network from the terminal.
+// carve: exclusive licensing with a private book, from the terminal.
 //
-//   npm run salvo -- <command> [args] [--net preprod] [--as <player>]
+//   npm run carve -- <command> [args] [--net preprod] [--as <user>]
 //
-// Players are local private-state namespaces ("me" by default). One wallet
-// pays fees for all of them in this CLI.
+// Users are local identities ("me" by default), each with its own private
+// state. One wallet pays fees for all of them in this CLI.
 
-import { BOARD, type Ledger, Phase, type Placement, fleetProblem, fromShips, isHitAt, randomPlacement } from "@salvo/contract";
+import {
+  CATEGORIES,
+  type Grant,
+  REGIONS,
+  conflicts,
+  decodeLicense,
+  encodeLicense,
+  fromHex,
+  grantProblem,
+  indexes,
+  makeGrant,
+  pureCircuits,
+  randomBytes,
+  startedClean,
+  termsHash,
+  toHex,
+} from "@carve/contract";
 import { loadNetwork } from "./config.js";
-import * as S from "./salvo.js";
+import * as C from "./carve.js";
 import { buildWallet, loadOrCreateSeed, persistWallet, step } from "./wallet.js";
 
 const HELP = `
-salvo: Battleship on Midnight
+carve: exclusive licensing with a private book, on Midnight
 
-  new [minutesPerMove=60]   Deploy a game and commit your fleet
-  join <address>            Commit your fleet and join a game
-  fire A1 [B2] [C3]         Answer the salvo at you (with proofs) and fire back
-  board                     Both boards and whose turn it is
-  claim                     Win if your opponent ran out of time
-  resign                    Give up
-  show                      After the game, reveal your fleet
+  id                         Your licensee ID (send it to a licensor)
+  new "<title>"              Deploy a book for a property; you are its licensor
+  issue                      Issue a grant. Proves it overlaps no exclusive grant.
+      --to <licensee ID | local user>  --regions "south asia,east asia"  --categories food
+      --from 2027-01  --months 12  [--shared]  [--terms "8% royalty"]
+  book                       The ledger, and your private book if you're the licensor
+  accept <license code>      Check a license against the ledger and accept it
+  prove <grant#> <region> <category> <check>   Answer a check with a proof
+  check <check>              Read a check's answer
 
-Options: --net preprod|preview|undeployed (default preprod)  --as <player>  --game <address>
-         --fleet "A1h B3h C5v F2v"   ships of length 4,3,3,2: top-left cell + h|v (random if omitted)
+Options: --net preprod|preview|undeployed (default preprod)  --as <user>  --book <address>
+Regions:    ${REGIONS.join(", ")}
+Categories: ${CATEGORIES.join(", ")}
 `;
 
 const parseArgs = (argv: string[]) => {
   const flags: Record<string, string> = {};
   const pos: string[] = [];
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i].startsWith("--")) flags[argv[i].slice(2)] = argv[++i];
+    if (argv[i] === "--shared") flags.shared = "1";
+    else if (argv[i].startsWith("--")) flags[argv[i].slice(2)] = argv[++i];
     else pos.push(argv[i]);
   }
   return { cmd: pos[0], args: pos.slice(1), flags };
 };
 
-const COLS = "ABCDEFGH";
-const parseCell = (s: string): [number, number] => {
-  const m = s.toUpperCase().match(/^([A-H])([1-8])$/);
-  if (!m) throw new Error(`"${s}" is not a cell (A1 to H8)`);
-  return [COLS.indexOf(m[1]), Number(m[2]) - 1];
+/** "south asia" or "6" → index into names. */
+const pick = (names: readonly string[], s: string): number => {
+  const t = s.trim().toLowerCase();
+  const n = Number(t);
+  if (Number.isInteger(n) && n >= 1 && n <= names.length) return n - 1;
+  const i = names.findIndex((x) => x.toLowerCase().startsWith(t) || x.toLowerCase().includes(t));
+  if (i < 0) throw new Error(`"${s}" is not one of: ${names.join(", ")}`);
+  return i;
 };
-const parseFleet = (s: string | undefined): Placement[] => {
-  if (!s) return randomPlacement();
-  const ships = s.trim().split(/\s+/).map((t) => {
-    const [x, y] = parseCell(t.slice(0, -1));
-    const o = t.slice(-1).toLowerCase();
-    if (o !== "h" && o !== "v") throw new Error(`"${t}": end each ship with h or v`);
-    return { x, y, vertical: o === "v" };
-  });
-  if (ships.length !== 4) throw new Error("A fleet is 4 ships: lengths 4, 3, 3, 2");
-  const bad = fleetProblem(ships);
-  if (bad) throw new Error(bad);
-  return ships;
-};
+const pickAll = (names: readonly string[], s: string | undefined) => (s ? s.split(",").map((x) => pick(names, x)) : []);
 
-const draw = (l: Ledger, me: 1 | 2 | null, mine: Placement[] | null) => {
-  const shotsAt = (n: 1 | 2) => (n === 1 ? l.shots_at1 : l.shots_at2);
-  const grid = (n: 1 | 2, ships: Placement[] | null) => {
-    const s = shotsAt(n);
-    const rows = [`   ${[...COLS].join(" ")}`];
-    for (let y = 0; y < BOARD; y++) {
-      let r = `${y + 1}  `;
-      for (let x = 0; x < BOARD; x++) {
-        const c = BigInt(y * BOARD + x);
-        r += (s.member(c) ? (s.lookup(c) ? "X" : "o") : ships && isHitAt(ships, x, y) ? "■" : "·") + " ";
-      }
-      rows.push(r);
-    }
-    return rows;
-  };
-  const opp = me === 2 ? 1 : 2;
-  const left = grid(me ?? 1, me ? mine : null);
-  const right = grid(opp as 1 | 2, null);
-  console.log(`  ${(me ? "Your fleet" : "Fleet 1").padEnd(22)}${me ? "Enemy waters" : "Fleet 2"}`);
-  for (let i = 0; i < left.length; i++) console.log(`  ${left[i].padEnd(22)}${right[i]}`);
-  console.log("");
+const monthStart = (ym: string, add = 0) => {
+  const m = ym.match(/^(\d{4})-(\d{2})$/);
+  if (!m) throw new Error(`"${ym}" is not a month (YYYY-MM)`);
+  return BigInt(Date.UTC(Number(m[1]), Number(m[2]) - 1 + add, 1) / 1000);
 };
+const ym = (t: bigint) => new Date(Number(t) * 1000).toISOString().slice(0, 7);
+const describe = (g: Grant) =>
+  `${indexes(g.regions).map((i) => REGIONS[i]).join(", ")} × ${indexes(g.categories).map((i) => CATEGORIES[i]).join(", ")}, ${ym(g.start)} to ${ym(g.end - 1n)}, ${g.exclusive ? "exclusive" : "non-exclusive"}`;
 
 const main = async () => {
   const { cmd, args, flags } = parseArgs(process.argv.slice(2));
   if (!cmd || cmd === "help") return console.log(HELP);
 
   const net = loadNetwork(flags.net ?? "preprod");
-  const player = flags.as ?? "me";
-  console.log(`\n  salvo · ${net.name} · playing as "${player}"\n`);
+  const user = flags.as ?? "me";
+  if (cmd === "id") return console.log(`\n  Licensee ID for "${user}":\n  ${C.licenseeId(net, user)}\n`);
+  console.log(`\n  carve · ${net.name} · as "${user}"\n`);
 
   const seed = loadOrCreateSeed(net);
   const ctx = await buildWallet(net, seed);
-  const p = await S.providersFor(net, ctx, player);
-  const address = cmd === "join" ? args[0] : (flags.game ?? S.loadGameAddress(net));
+  const p = await C.providersFor(net, ctx, user);
+  const address = cmd === "accept" ? decodeLicense(args[0] ?? "")?.address : (flags.book ?? C.loadBookAddress(net));
   const need = () => {
-    if (!address) throw new Error("No game. Run `new`, `join <address>` or pass --game <address>.");
+    if (!address) throw new Error("No book. Run `new`, or pass --book <address>.");
     return address;
   };
-  if (address && cmd !== "new") S.scopeToGame(p, address);
-  const game = () => step("Opening the game", () => S.open(p, need()));
-  const l = () => S.readLedger(p, need());
+  if (address && cmd !== "new") C.scopeToBook(p, address);
+  const book = () => step("Opening the book", () => C.open(net, p, user, need()));
 
   try {
     switch (cmd) {
       case "new": {
-        const ships = parseFleet(flags.fleet);
-        const a = await step("Deploying the game and committing your fleet", () => S.create(net, p, BigInt(Number(args[0] ?? 60) * 60), ships));
-        console.log(`\n  Game: ${a}\n  Send this address to your opponent. You fire first.\n`);
+        if (!args[0]) throw new Error('Give the property a name: new "Mochi the Cat"');
+        const a = await step("Deploying the book", () => C.create(net, p, user, args[0]));
+        console.log(`\n  Book: ${a}\n  You are its licensor. Issue grants with \`issue\`.\n`);
         break;
       }
-      case "join":
-        await step("Proving your fleet and joining", () => S.join(net, p, need(), parseFleet(flags.fleet)));
-        console.log("  Joined. Your opponent fires first.\n");
-        break;
-      case "fire": {
-        const shots = args.map(parseCell);
-        const c = await game();
-        await step(`Answering and firing at ${args.join(" ").toUpperCase()}`, () => S.fire(c, shots));
-        console.log("");
-        break;
-      }
-      case "claim":
-        await step("Claiming the win on time", async () => (await game()).callTx.claim_timeout());
-        break;
-      case "resign":
-        await step("Resigning", async () => (await game()).callTx.resign());
-        break;
-      case "show":
-        await step("Revealing your fleet", async () => (await game()).callTx.show_fleet());
-        break;
-      case "board": {
-        const s = await l();
-        const me = await S.seat(p, s);
-        const f = await S.myFleet(p);
-        const phase = ["waiting for player 1", "waiting for an opponent", "playing", "over"][s.phase];
-        console.log(`  ${need()}\n  ${phase} · moves ${s.moves} · hits on 1: ${s.hits_on1}/12 · hits on 2: ${s.hits_on2}/12`);
-        if (s.phase === Phase.playing) {
-          const left = Math.max(0, Number(s.deadline) - Date.now() / 1000);
-          const who = me ? (Number(s.turn) === me ? "your move" : "their move") : `player ${s.turn} to move`;
-          console.log(`  ${who} · ${Math.floor(left / 60)}m ${Math.floor(left % 60)}s left`);
+      case "issue": {
+        if (!flags.to) throw new Error("Who is it for? --to <licensee ID or local user>");
+        const licensee = /^[0-9a-f]{64}$/i.test(flags.to) ? fromHex(flags.to.toLowerCase()) : fromHex(C.licenseeId(net, flags.to));
+        const from = flags.from ?? new Date().toISOString().slice(0, 7);
+        const note = flags.terms ?? "";
+        const g = makeGrant({
+          regions: pickAll(REGIONS, flags.regions),
+          categories: pickAll(CATEGORIES, flags.categories),
+          start: monthStart(from),
+          end: monthStart(from, Number(flags.months ?? 12)),
+          exclusive: !flags.shared,
+          licensee,
+          terms: await termsHash(note),
+          salt: randomBytes(),
+        });
+        const bad = grantProblem(g);
+        if (bad) throw new Error(bad);
+        const l = await C.readLedger(p, need());
+        const ps = await C.privateState(p);
+        const id = Number(l.issued);
+        if (ps?.book) {
+          const hit = conflicts(ps.book, id, g);
+          if (hit.length) console.log(`  Clashes with ${hit.map((i) => `#${i + 1}`).join(", ")}. Asking the contract anyway…`);
         }
-        if (s.phase === Phase.over) console.log(`  player ${s.winner} won${s.by_timeout ? " on time" : ""}${me ? (Number(s.winner) === me ? " (you)" : "") : ""}`);
+        const c = await book();
+        await step(`Proving grant #${id + 1} overlaps nothing exclusive`, () => C.issue(c, g));
+        const code = encodeLicense({ address: need(), id, title: l.title, note, grant: g });
+        console.log(`\n  Grant #${id + 1}: ${describe(g)}\n  Send the licensee this code, privately:\n\n  ${code}\n`);
+        break;
+      }
+      case "book": {
+        const l = await C.readLedger(p, need());
+        const d = await C.readDeployLedger(p, need());
+        const ps = await C.privateState(p);
+        const mine = !!ps?.book && toHex(pureCircuits.licensor_key(ps.secret)) === toHex(l.licensor);
+        console.log(`  ${l.title}\n  ${need()}`);
+        console.log(`  ${l.issued} issued · ${l.accepted.size()} accepted · ${l.checks.size()} checks · ${d && startedClean(d) ? "started clean" : "NOT a clean deploy"}\n`);
+        for (const [id, commitment] of l.grants) {
+          const g = mine ? ps.book!.grants[Number(id)] : null;
+          const acc = l.accepted.member(id) ? "accepted" : "not accepted";
+          console.log(`  #${Number(id) + 1}  ${g ? describe(g) : toHex(commitment)}  (${acc})`);
+        }
         console.log("");
-        draw(s, me, f ? fromShips(f.ships) : null);
+        break;
+      }
+      case "accept": {
+        const lic = decodeLicense(args[0] ?? "");
+        if (!lic) throw new Error("That is not a license code");
+        const l = await C.readLedger(p, lic.address);
+        console.log(`  ${lic.title} · grant #${lic.id + 1}\n  ${describe(lic.grant)}${lic.note ? `\n  Terms: ${lic.note}` : ""}\n`);
+        if (!l.grants.member(BigInt(lic.id)) || toHex(l.grants.lookup(BigInt(lic.id))) !== toHex(pureCircuits.grant_commitment(lic.grant)))
+          throw new Error("The ledger has no grant with these terms");
+        await step("Proving you hold this grant", () => C.accept(net, p, user, lic));
+        console.log("  Accepted.\n");
+        break;
+      }
+      case "prove": {
+        const [id, region, category, check] = args;
+        if (!check) throw new Error("prove <grant#> <region> <category> <check>");
+        const c = await book();
+        await step("Proving your rights", () => C.proveRights(c, Number(id) - 1, pick(REGIONS, region), pick(CATEGORIES, category), fromHex(check)));
+        console.log("");
+        break;
+      }
+      case "check": {
+        const l = await C.readLedger(p, need());
+        const q = fromHex(args[0] ?? "");
+        if (!l.checks.member(q)) console.log("  Not answered yet.\n");
+        else {
+          const a = l.checks.lookup(q);
+          console.log(
+            `  Licensed: grant #${Number(a.grant) + 1}, ${REGIONS[Number(a.region)]} × ${CATEGORIES[Number(a.category)]}, ${a.exclusive ? "exclusive" : "non-exclusive"}, proven ${new Date(Number(a.at) * 1000).toISOString()}\n`,
+          );
+        }
         break;
       }
       default:

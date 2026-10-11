@@ -20,6 +20,15 @@ export const errorText = (e: unknown): string | null => {
   return m.length > 240 ? `${m.slice(0, 240)}…` : m;
 };
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "Jan 2027" for a Unix time in seconds. */
+export const month = (t: bigint) => {
+  const d = new Date(Number(t) * 1000);
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+};
+/** "Jan 2027 – Dec 2027": the end is exclusive, so show the month before it. */
+export const period = (start: bigint, end: bigint) => `${month(start)} – ${month(end - 1n)}`;
+
 export const useNow = (everyMs = 1000) => {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -29,22 +38,12 @@ export const useNow = (everyMs = 1000) => {
   return now;
 };
 
-export const countdown = (to: number, now: number) => {
-  let s = Math.max(0, Math.floor((to - now) / 1000));
-  const d = Math.floor(s / 86400);
-  s -= d * 86400;
-  const h = Math.floor(s / 3600);
-  s -= h * 3600;
-  const m = Math.floor(s / 60);
-  s -= m * 60;
-  return d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`;
-};
-
-export const Copy = ({ text, label = "Copy" }: { text: string; label?: string }) => {
+export const Copy = ({ text, label = "Copy", className = "ghost-btn" }: { text: string; label?: string; className?: string }) => {
   const [done, setDone] = useState(false);
   return (
     <button
-      className="ghost-btn"
+      type="button"
+      className={className}
       onClick={() => {
         navigator.clipboard.writeText(text).then(() => {
           setDone(true);
@@ -56,3 +55,12 @@ export const Copy = ({ text, label = "Copy" }: { text: string; label?: string })
     </button>
   );
 };
+
+export const Notice = ({ title, children }: { title: React.ReactNode; children?: React.ReactNode }) => (
+  <main className="notice">
+    <h1>{title}</h1>
+    {children}
+  </main>
+);
+
+export const short = (hex: string) => `${hex.slice(0, 8)}…${hex.slice(-4)}`;

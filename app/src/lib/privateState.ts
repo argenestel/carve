@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Browser private-state provider. Secrets and fleets are stored in this
-// browser's localStorage, scoped per game contract, and never sent anywhere.
+// Browser private-state provider. Identity secrets, books and held grants are stored in this
+// browser's localStorage, scoped per contract, and never sent anywhere.
 // (The LevelDB provider also works, but needs heavy Node polyfills in the browser.)
 
 import type { ContractAddress, SigningKey } from "@midnight-ntwrk/compact-runtime";
 import type { PrivateStateProvider } from "@midnight-ntwrk/midnight-js-types";
-import { fromHex, toHex } from "@salvo/contract";
+import { fromHex, toHex } from "@carve/contract";
 import { NETWORK_ID } from "./network";
 
 const encode = (v: unknown) =>
@@ -14,7 +14,7 @@ const encode = (v: unknown) =>
 const decode = <T>(s: string): T =>
   JSON.parse(s, (_k, x) => (x && typeof x === "object" ? ("$u8" in x ? fromHex(x.$u8) : "$n" in x ? BigInt(x.$n) : x) : x));
 
-const prefix = `salvo:${NETWORK_ID}`;
+const prefix = `carve:${NETWORK_ID}`;
 
 export class LocalPrivateStateProvider<PS> implements PrivateStateProvider<string, PS> {
   private address: string | null = null;
@@ -66,7 +66,7 @@ export class LocalPrivateStateProvider<PS> implements PrivateStateProvider<strin
   }
 }
 
-/** Small app-level records: recent games. */
+/** Small app-level records: identity, recent books, licenses, notes. */
 export const local = {
   get<T>(k: string): T | null {
     const s = localStorage.getItem(`${prefix}:${k}`);

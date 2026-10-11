@@ -2,8 +2,8 @@
 //
 // Midnight Preprod. Since 2026-10-09 the public indexer and node RPC are run by
 // Blockfrost and need a "Midnight Preprod" project token (nightpreprod…).
-// With VITE_BLOCKFROST_PROJECT_ID set, anyone can watch games without a
-// wallet. Without it, the app reads through the indexer configured in Lace.
+// With VITE_BLOCKFROST_PROJECT_ID set, anyone can read books and checks
+// without a wallet. Without it, the app reads through the indexer configured in Lace.
 
 import { setNetworkId } from "@midnight-ntwrk/midnight-js-network-id";
 

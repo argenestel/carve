@@ -1,10 +1,58 @@
-# Salvo: deck outline (8 slides)
+# Carve: pitch deck outline
 
-1. **Salvo.** Battleship where nobody can cheat: hidden fleets, every hit proven in zero knowledge, on Midnight.
-2. **Problem.** Hidden-information games need someone to hold the secrets. Servers can leak and lie, public chains hide nothing, and commit-reveal catches cheaters only after the game, if the loser bothers to reveal.
-3. **Insight.** Midnight lets each player keep their own secret and prove every answer about it, move by move. The referee is the contract.
-4. **Flow.** Hide (ZK: legal fleet, only a hash on-chain) → Fire up to 3 shots → Answer (ZK: hit or miss against the committed fleet) → Sink 12 cells, or win on the clock.
-5. **Live on Preprod.** Two browsers with Lace: create, join, a few salvos; the spectator view shows proven hits and misses and no ships.
-6. **Under the hood.** 5 proven circuits, answer and fire in one transaction, a timestamp bounded by block time, 19 passing tests, Compact 0.31.1, a headless CLI player.
-7. **Why it matters.** The pattern of a private commitment plus a proven answer each turn works for any hidden-information game: Stratego, fog-of-war, card drafting, and games with wagers held in escrow.
-8. **Next.** Private "sunk" proofs, an open-games lobby, encrypted fleet backup, wagers, a 10×10 board.
+Ten slides, about three minutes.
+
+## 1. Carve
+Sell exclusive rights. Keep your book private.
+Exclusive licensing on Midnight.
+
+## 2. Exclusivity is a promise nobody can check
+- Licensing is a ~$370B retail market (Licensing International, 2024), and almost all of it is carved up by territory, category and time.
+- A licensee pays for *"only you, in South Asia, in food and drink, until 2028"*.
+- The licensor's deal book is confidential, so the licensee takes that on trust. Overlapping grants are found in court, after the launch.
+
+## 3. Why it isn't solved
+- **Spreadsheets and CRMs:** private, and unverifiable by anyone outside.
+- **A public registry or blockchain:** verifiable, and it hands every competitor your client list and fees.
+- **Lawyers and audits:** slow, expensive, and only after something goes wrong.
+
+## 4. Carve: prove the book without showing it
+- The book lives on the licensor's device. Only a commitment is on-chain.
+- Every new grant comes with a **zero-knowledge proof** that it overlaps no exclusive grant in the whole book.
+- An overlapping grant can't be issued: there is no proof for it.
+
+## 5. Demo: the rights map
+Regions down, categories across. Tap out a grant, and a clash shows before you prove. **Try anyway**: the contract refuses.
+
+## 6. Three parties, three proofs
+| | Proves | Keeps private |
+|---|---|---|
+| Licensor | no overlap with any exclusive grant, against the committed book | every grant, licensee and term |
+| Licensee | "these are the terms I was issued, and I'm the one named" | identity, terms |
+| Licensee to retailer | "I'm licensed for this region and category today" | everything else in the deal |
+
+## 7. Built on Midnight
+- Compact contract, 3 proven circuits: `issue`, `accept`, `prove_rights`.
+- Private state: identity secret, the book (16 grants), held grants.
+- The book commitment is Poseidon, so `issue` stays a 19 MB proving key. Grant commitments are SHA-256, checked by licensees off-chain.
+- The constructor isn't proven, so the app reads the deploy transaction and shows **Started clean**.
+- 28 simulator tests. Lace connector v4 with wallet-side proving. A CLI for scripted runs.
+
+## 8. Who it's for
+- **First:** independent licensing agencies and character IP studios (dozens to hundreds of grants per property), and the manufacturers who license from them.
+- **Then:** music sync licensing, franchise territories, sports media rights, distribution agreements. Same shape: exclusive slices of a grid.
+- **Revenue:** per-book subscription for licensors, and per-check fees for marketplaces that verify listings.
+
+## 9. Roadmap
+- **Wave 3:**
+  - Merkle-tree books (hundreds of grants);
+  - an encrypted book backup;
+  - a property registry bound to the owner's credential.
+- **Later:**
+  - sublicensing proven to stay inside the parent grant;
+  - royalty reports proven against the terms;
+  - a marketplace integration for the check flow.
+
+## 10. Carve
+Exclusive rights you can prove, from a book nobody can read.
+github.com/argenestel/carve
