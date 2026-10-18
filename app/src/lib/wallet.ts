@@ -46,7 +46,8 @@ export const connectWallet = async (): Promise<Wallet> => {
   }
   const [config, addr] = await Promise.all([api.getConfiguration(), api.getShieldedAddresses()]);
   if (config.networkId !== NETWORK_ID) throw new WalletError(`Lace is on "${config.networkId}". Switch it to Preprod.`);
-  await api.hintUsage(["balanceUnsealedTransaction", "submitTransaction", "getProvingProvider"]).catch(() => {});
+  // Optional in the connector API; not every Lace build implements it.
+  await Promise.resolve(api.hintUsage?.(["balanceUnsealedTransaction", "submitTransaction", "getProvingProvider"])).catch(() => {});
   return {
     api,
     name: connector.name,
