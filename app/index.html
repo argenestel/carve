@@ -10,7 +10,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Shown while the Midnight runtime (wasm, ~5 MB) downloads; React replaces it. -->
+      <div style="min-height: 100vh; display: grid; place-content: center; gap: 14px; text-align: center; background: #f3eee2; color: #132238; font-family: system-ui, sans-serif">
+        <div style="font: 900 44px/1 'Big Shoulders Display', Impact, sans-serif; text-transform: uppercase">Carve</div>
+        <div style="font-size: 14px; color: #5b6576">Loading the Midnight runtime…</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -2,6 +2,8 @@
 
 **Sell exclusive rights. Keep your book private.** Carve lets a rights holder license a property (a character, a brand, a song) by region, product category and time. Midnight proves each new grant doesn't overlap an exclusive one already sold, and nobody, not even the licensees, sees who else bought what.
 
+**Live app:** https://carve-vert.vercel.app (Midnight Preprod, needs [Lace](https://www.lace.io/)) · **Deck:** [`docs/deck/Carve-Wave2-deck.pdf`](docs/deck/Carve-Wave2-deck.pdf) · **Contract:** [`contract/src/carve.compact`](contract/src/carve.compact) · **Tests:** `npm test`
+
 ## The problem
 
 Licensing runs on exclusivity: *"you are the only one selling Mochi the Cat drinks in South Asia until 2028"*. Today that promise is only as good as the licensor's spreadsheet:

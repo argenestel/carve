@@ -7,7 +7,7 @@ Sell exclusive rights. Keep your book private.
 Exclusive licensing on Midnight.
 
 ## 2. Exclusivity is a promise nobody can check
-- Licensing is a ~$370B retail market (Licensing International, 2024), and almost all of it is carved up by territory, category and time.
+- Licensed goods sold $389.8B at retail in 2025 (Licensing International, Global Licensing Industry Study 2026), and almost all of it is carved up by territory, category and time.
 - A licensee pays for *"only you, in South Asia, in food and drink, until 2028"*.
 - The licensor's deal book is confidential, so the licensee takes that on trust. Overlapping grants are found in court, after the launch.
 

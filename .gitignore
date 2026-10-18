@@ -8,3 +8,5 @@ reports/
 .env
 app/public/managed/
 *.tsbuildinfo
+.deploy/
+.tmp/

@@ -1,0 +1,222 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Carve, Wave 2 deck. Print to PDF at 1280×720: chromium --headless --print-to-pdf -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Carve: Wave 2 deck</title>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet" />
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  :root { --paper: #f3eee2; --card: #fbf8f1; --ink: #132238; --ink2: #5b6576; --grid: #d6d0c0; --red: #d9412b; --ok: #1f8a5b; --aim: #f29b17; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #888; }
+  body { font: 20px/1.45 Inter, system-ui, sans-serif; color: var(--ink); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .slide {
+    width: 1280px; height: 720px; position: relative; overflow: hidden; page-break-after: always; break-after: page;
+    padding: 64px 76px; background-color: var(--paper);
+    background-image: linear-gradient(rgba(19,34,56,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(19,34,56,.045) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .slide:last-child { page-break-after: auto; break-after: auto; }
+  h1, h2 { font-family: "Big Shoulders Display", Impact, sans-serif; font-weight: 900; text-transform: uppercase; margin: 0; line-height: .92; letter-spacing: .01em; }
+  h1 { font-size: 104px; }
+  h2 { font-size: 60px; margin-bottom: 28px; }
+  em { font-style: normal; color: var(--red); }
+  .eyebrow { font: 700 15px "JetBrains Mono", monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--ink2); margin-bottom: 14px; display: block; }
+  .muted { color: var(--ink2); }
+  .foot { position: absolute; left: 76px; right: 76px; bottom: 30px; display: flex; justify-content: space-between; font: 600 13px "JetBrains Mono", monospace; color: var(--ink2); border-top: 2px solid var(--ink); padding-top: 10px; }
+  .shot { border: 3px solid var(--ink); border-radius: 10px; box-shadow: 7px 7px 0 var(--ink); display: block; background: var(--paper); }
+  .cols { display: grid; gap: 28px; }
+  .card { background: var(--card); border: 3px solid var(--ink); border-radius: 12px; box-shadow: 6px 6px 0 var(--ink); padding: 24px 26px; }
+  .card b.t { display: block; font: 900 32px/1 "Big Shoulders Display", sans-serif; text-transform: uppercase; margin-bottom: 10px; }
+  .card p { margin: 0; font-size: 18px; color: var(--ink2); }
+  .tag { display: inline-block; font: 700 13px "JetBrains Mono", monospace; padding: 3px 9px; border-radius: 5px; margin-bottom: 12px; }
+  .tag.bad { background: #fde9e5; color: #a52a1a; }
+  .tag.ok { background: #e9f5ee; color: #17663f; }
+  ul.list { margin: 0; padding: 0; list-style: none; display: grid; gap: 16px; }
+  ul.list li { padding-left: 30px; position: relative; font-size: 21px; }
+  ul.list li::before { content: ""; position: absolute; left: 0; top: 10px; width: 14px; height: 14px; background: var(--red); border-radius: 3px; }
+  table { border-collapse: collapse; width: 100%; font-size: 17px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 2px solid var(--grid); vertical-align: top; }
+  th { font: 700 13px "JetBrains Mono", monospace; text-transform: uppercase; letter-spacing: .08em; color: var(--ink2); border-bottom: 3px solid var(--ink); }
+  td b { font-weight: 700; }
+  code, .mono { font-family: "JetBrains Mono", monospace; font-size: .86em; }
+  .stamp { display: inline-block; font: 900 30px/1 "Big Shoulders Display", sans-serif; text-transform: uppercase; letter-spacing: .08em; color: var(--red); border: 4px double var(--red); border-radius: 8px; padding: 9px 16px 6px; transform: rotate(-6deg); }
+  .big-num { font: 900 120px/0.9 "Big Shoulders Display", sans-serif; color: var(--red); }
+  .kv { display: grid; grid-template-columns: 170px 1fr; gap: 10px 18px; font-size: 18px; }
+  .kv dt { font: 700 13px/26px "JetBrains Mono", monospace; text-transform: uppercase; color: var(--ink2); letter-spacing: .06em; }
+  .kv dd { margin: 0; }
+</style>
+</head>
+<body>
+
+<!-- 1 -->
+<section class="slide">
+  <div style="display:grid;grid-template-columns:1fr 520px;gap:40px;align-items:center;height:100%">
+    <div>
+      <span class="eyebrow">Midnight Buildathon · Wave 2</span>
+      <h1 style="font-size:150px">Carve</h1>
+      <p style="font-size:34px;font-weight:600;line-height:1.2;margin:26px 0 0">Sell exclusive rights.<br /><em>Keep your book private.</em></p>
+      <p class="muted" style="margin-top:24px;font-size:20px">Exclusive licensing on Midnight: every grant is proven not to overlap an exclusive one, and nobody sees who bought what.</p>
+    </div>
+    <img class="shot" src="img/book-clash.png" style="width:520px;transform:rotate(2deg)" />
+  </div>
+  <div class="foot"><span>github.com/argenestel/carve</span><span>carve-vert.vercel.app</span></div>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <span class="eyebrow">The problem</span>
+  <h2>Exclusivity is a promise<br />nobody can check</h2>
+  <div style="display:grid;grid-template-columns:420px 1fr;gap:56px;align-items:start;margin-top:10px">
+    <div>
+      <div class="big-num">$389.8B</div>
+      <p class="muted" style="font-size:17px;margin-top:10px">Global retail sales of licensed merchandise and services, 2025. Licensing International, Global Licensing Industry Study 2026.</p>
+    </div>
+    <ul class="list">
+      <li>Almost every deal is carved up by <b>territory × product category × time</b>.</li>
+      <li>A licensee pays for <i>"only you sell Mochi drinks in South Asia until 2028"</i>.</li>
+      <li>The licensor's book is confidential: competitors' names, territories and fees. So the licensee takes exclusivity <b>on trust</b>.</li>
+      <li>Overlapping grants surface after launch, as disputes.</li>
+    </ul>
+  </div>
+  <div class="foot"><span>Carve</span><span>2</span></div>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <span class="eyebrow">Why it isn't solved</span>
+  <h2>Verifiable <em>or</em> private. Never both.</h2>
+  <div class="cols" style="grid-template-columns:repeat(3,1fr);margin-top:20px">
+    <div class="card"><span class="tag bad">unverifiable</span><b class="t">Spreadsheets &amp; CRMs</b><p>Private, but nobody outside the agency can check them. Licensees just trust.</p></div>
+    <div class="card"><span class="tag bad">leaks the book</span><b class="t">A public registry</b><p>Anyone can verify, and every competitor gets your client list, territories and fees.</p></div>
+    <div class="card"><span class="tag bad">after the fact</span><b class="t">Lawyers &amp; audits</b><p>Slow and expensive, and they only start once something has already gone wrong.</p></div>
+  </div>
+  <p style="font-size:24px;margin-top:44px;font-weight:600">Midnight lets the licensor keep the book private <em>and</em> prove things about it.</p>
+  <div class="foot"><span>Carve</span><span>3</span></div>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <span class="eyebrow">The product</span>
+  <h2>Prove the book.<br />Never show it.</h2>
+  <div style="display:grid;grid-template-columns:1fr 560px;gap:44px;align-items:start">
+    <ul class="list" style="margin-top:6px">
+      <li>The licensor's <b>book</b> of grants lives on their device. The ledger holds only a commitment.</li>
+      <li>Issuing a grant comes with a <b>zero-knowledge proof</b> that it overlaps no exclusive grant in the whole book.</li>
+      <li>An overlap <b>can't be issued</b>: there is no proof for it, even from the licensor's own client.</li>
+      <li>The rights map shows the clash before proving. <b>Try anyway</b>, and the contract refuses.</li>
+    </ul>
+    <img class="shot" src="img/book-clash.png" style="width:560px" />
+  </div>
+  <div class="foot"><span>Carve</span><span>4</span></div>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <span class="eyebrow">Three parties, three proofs</span>
+  <h2 style="font-size:52px">Each side proves one thing</h2>
+  <table style="margin-top:4px">
+    <tr><th style="width:190px">Who</th><th>Proves in zero knowledge</th><th style="width:330px">Keeps private</th></tr>
+    <tr><td><b>Licensor</b> · <code>issue</code></td><td>The grant clashes with no earlier grant, against the book committed on-chain, with nothing removed</td><td>Every grant, licensee and term</td></tr>
+    <tr><td><b>Licensee</b> · <code>accept</code></td><td>"These exact terms were issued, and I'm the one named"</td><td>Identity and terms</td></tr>
+    <tr><td><b>Licensee</b> · <code>prove_rights</code></td><td>"My accepted grant covers <i>this</i> region and category <i>today</i>"</td><td>Other regions, dates, terms, who they are</td></tr>
+  </table>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:26px">
+    <img class="shot" src="img/license.png" style="width:100%;height:190px;object-fit:cover;object-position:top" />
+    <img class="shot" src="img/check-done.png" style="width:100%;height:190px;object-fit:cover;object-position:top" />
+  </div>
+  <div class="foot"><span>Carve</span><span>5</span></div>
+</section>
+
+<!-- 6 -->
+<section class="slide">
+  <span class="eyebrow">What the public sees</span>
+  <h2>Commitments, counts, answers</h2>
+  <div style="display:grid;grid-template-columns:560px 1fr;gap:44px;align-items:start">
+    <img class="shot" src="img/book-public.png" style="width:560px" />
+    <div>
+      <dl class="kv">
+        <dt>Public ledger</dt><dd>Title, licensor key, book commitment, grant count, one commitment per grant, which are accepted, answers to checks</dd>
+        <dt>Private state</dt><dd>Identity secret · the licensor's book (16 grants + salt) · the licensee's grants</dd>
+        <dt>Off-chain</dt><dd>Each grant reaches its licensee as a private link, checked against its commitment</dd>
+      </dl>
+      <p class="muted" style="font-size:17px;margin-top:22px">The constructor isn't proven, so the app reads the <b>deploy transaction's state</b> and shows <span class="mono" style="color:var(--ok)">✓ Started clean</span> only if the book began empty.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Carve</span><span>6</span></div>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <span class="eyebrow">Built on Midnight</span>
+  <h2>Engineering</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px">
+    <ul class="list">
+      <li><b>Compact 0.31.1</b> contract, 3 proven circuits: <code>issue</code>, <code>accept</code>, <code>prove_rights</code>.</li>
+      <li>Book commitment is <b>Poseidon</b> (<code>transientHash</code>): the <code>issue</code> key went from <b>76 MB to 19 MB</b>. Grant commitments stay SHA-256, domain-separated and salted.</li>
+      <li>Time from a witness, bounded by <code>blockTimeGte</code> / <code>blockTimeLt</code>.</li>
+    </ul>
+    <ul class="list">
+      <li><b>28 simulator tests</b> on the compiled circuits: overlaps, deleted or stale books, impostors, expiry, replayed checks. Mutation-checked.</li>
+      <li>React app on <b>Lace DApp Connector v4</b>, proving in the wallet. Live at <span class="mono">carve-vert.vercel.app</span>.</li>
+      <li>CLI on midnight-js 4.1.1 for scripted runs. Apache-2.0.</li>
+    </ul>
+  </div>
+  <div class="foot"><span>Carve</span><span>7</span></div>
+</section>
+
+<!-- 8 -->
+<section class="slide">
+  <span class="eyebrow">Market &amp; adoption</span>
+  <h2>Who it's for</h2>
+  <div class="cols" style="grid-template-columns:repeat(3,1fr)">
+    <div class="card"><b class="t">First</b><p>Independent licensing agencies and character-IP studios with dozens to hundreds of grants per property, and the manufacturers who license from them.</p></div>
+    <div class="card"><b class="t">Then</b><p>The same grid shape everywhere: music sync, franchise territories, sports media rights, distribution agreements.</p></div>
+    <div class="card"><b class="t">Revenue</b><p>A per-book subscription for licensors, and a per-check fee for marketplaces and retailers that verify listings.</p></div>
+  </div>
+  <p style="font-size:21px;margin-top:36px"><b>Adoption path:</b> the licensee asks for a Carve link at signing. The agency needs only a browser and a wallet, with no data migration: the book starts with the next deal.</p>
+  <div class="foot"><span>Carve</span><span>8</span></div>
+</section>
+
+<!-- 9 -->
+<section class="slide">
+  <span class="eyebrow">Progress &amp; roadmap</span>
+  <h2>Wave 2 → Wave 3</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px">
+    <div class="card">
+      <b class="t">Built this wave</b>
+      <ul class="list" style="gap:10px">
+        <li style="font-size:17px">Carve contract, witnesses, simulator, 28 tests</li>
+        <li style="font-size:17px">Rights-map app: issue, accept, check flows on Lace</li>
+        <li style="font-size:17px">Deploy-state verification, license links, check links</li>
+        <li style="font-size:17px">CLI, README, live deploy on Vercel</li>
+      </ul>
+    </div>
+    <div class="card">
+      <b class="t">Next</b>
+      <ul class="list" style="gap:10px">
+        <li style="font-size:17px">Merkle-tree books: hundreds of grants per property</li>
+        <li style="font-size:17px">Encrypted book backup, wallet-derived identity</li>
+        <li style="font-size:17px">Property registry bound to the owner's credential</li>
+        <li style="font-size:17px">Sublicensing proven to stay inside the parent grant</li>
+        <li style="font-size:17px">Royalty reports proven against the grant's terms</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Carve</span><span>9</span></div>
+</section>
+
+<!-- 10 -->
+<section class="slide">
+  <div style="height:100%;display:grid;place-content:center;text-align:center;gap:22px">
+    <span class="stamp" style="justify-self:center">Exclusive</span>
+    <h1 style="font-size:120px;margin-top:18px">Carve</h1>
+    <p style="font-size:30px;font-weight:600;margin:0">Exclusive rights you can prove,<br /><em>from a book nobody can read.</em></p>
+    <p class="mono" style="font-size:18px;margin-top:20px">carve-vert.vercel.app · github.com/argenestel/carve</p>
+  </div>
+</section>
+
+</body>
+</html>
